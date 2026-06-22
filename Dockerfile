@@ -20,15 +20,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install uv awscli
+RUN pip install awscli
 
 RUN git clone --depth 1 https://github.com/GaTech-RL2/EgoVerse.git "$EGOVERSE_REPO"
 
-WORKDIR /opt/EgoVerse
-RUN uv pip install --system -r requirements.txt && \
-    uv pip install --system -e .
-
 WORKDIR /app
+COPY deploy/requirements-viewer.txt /app/deploy/requirements-viewer.txt
+RUN pip install -r /app/deploy/requirements-viewer.txt
+
 COPY . /app
 
 RUN chmod +x /app/deploy/start.sh && \

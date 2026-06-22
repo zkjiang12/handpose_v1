@@ -7,7 +7,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import threading
 import webbrowser
@@ -18,37 +17,79 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 
-def add_egoverse_to_path() -> Path:
-    default_repo = Path(__file__).resolve().parents[2] / "EgoVerse"
-    repo = Path(os.environ.get("EGOVERSE_REPO", default_repo)).expanduser().resolve()
-    if not repo.exists():
-        raise SystemExit(
-            f"EgoVerse repo not found at {repo}. Set EGOVERSE_REPO or clone it next to handpose_v1."
-        )
-    sys.path.insert(0, str(repo))
-    venv_bin = repo / "emimic" / "bin"
-    if venv_bin.exists():
-        os.environ["PATH"] = f"{venv_bin}{os.pathsep}{os.environ.get('PATH', '')}"
-    return repo
-
-
-EGOVERSE_REPO = add_egoverse_to_path()
-
+import boto3  # noqa: E402
 import cv2  # noqa: E402
 import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
 import simplejpeg  # noqa: E402
+from sqlalchemy import URL, MetaData, Table, create_engine, inspect, select  # noqa: E402
 import zarr  # noqa: E402
 from scipy.spatial.transform import Rotation as R  # noqa: E402
-
-from egomimic.rldb.embodiment.human import Aria, Human, Mecka  # noqa: E402
-from egomimic.utils.aws.aws_data_utils import load_env  # noqa: E402
-from egomimic.utils.aws.aws_sql import create_default_engine, episode_table_to_df  # noqa: E402
-from egomimic.utils.egomimicUtils import INTRINSICS  # noqa: E402
 
 
 DEFAULT_CACHE_DIR = Path(
     os.environ.get("EGOVERSE_VIEWER_CACHE_DIR", "/data/egoverse_viewer_cache")
 )
+
+ARIA_INTRINSICS = np.array(
+    [
+        [133.25430222 * 2, 0.0, 320, 0],
+        [0.0, 133.25430222 * 2, 240, 0],
+        [0.0, 0.0, 1.0, 0],
+    ],
+    dtype=np.float64,
+)
+SCALE_INTRINSICS = np.array(
+    [[214.134, 0.0, 324.593, 0], [0.0, 256.968, 260.146, 0], [0.0, 0.0, 1.0, 0]],
+    dtype=np.float64,
+)
+MECKA_INTRINSICS = np.array(
+    [
+        [752.4707352849115 * (640 / 1920), 0.0, 961.8249427694457 * (640 / 1920), 0],
+        [0.0, 753.0015979987369 * (360 / 1080), 553.245895705989 * (360 / 1080), 0],
+        [0.0, 0.0, 1.0, 0],
+    ],
+    dtype=np.float64,
+)
+INTRINSICS = {
+    "base": ARIA_INTRINSICS,
+    "mecka": MECKA_INTRINSICS,
+    "scale": SCALE_INTRINSICS,
+}
+
+
+class Human:
+    FINGER_EDGES = [
+        (0, 1), (1, 2), (2, 3), (3, 4),
+        (0, 5), (5, 6), (6, 7), (7, 8),
+        (0, 9), (9, 10), (10, 11), (11, 12),
+        (0, 13), (13, 14), (14, 15), (15, 16),
+        (0, 17), (17, 18), (18, 19), (19, 20),
+    ]
+    FINGER_EDGE_RANGES = [
+        ("thumb", 0, 4),
+        ("index", 4, 8),
+        ("middle", 8, 12),
+        ("ring", 12, 16),
+        ("pinky", 16, 20),
+    ]
+
+
+class Aria(Human):
+    FINGER_EDGES = [
+        (5, 6), (6, 7), (7, 0),
+        (5, 8), (8, 9), (9, 10), (10, 1),
+        (5, 11), (11, 12), (12, 13), (13, 2),
+        (5, 14), (14, 15), (15, 16), (16, 3),
+        (5, 17), (17, 18), (18, 19), (19, 4),
+    ]
+    FINGER_EDGE_RANGES = [
+        ("thumb", 0, 3),
+        ("index", 3, 7),
+        ("middle", 7, 11),
+        ("ring", 11, 15),
+        ("pinky", 15, 19),
+    ]
 FRAME_KEYS = {
     "raw-aria": ("left.obs_aria_keypoints", "right.obs_aria_keypoints", Aria),
     "canonical": ("left.obs_keypoints", "right.obs_keypoints", Human),
@@ -66,6 +107,53 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-dir", default=str(DEFAULT_CACHE_DIR))
     parser.add_argument("--open", action="store_true", help="Open the viewer in a browser.")
     return parser.parse_args()
+
+
+def load_env(path: str = "~/.egoverse_env", required: bool = False) -> None:
+    env_path = Path(path).expanduser()
+    if not env_path.exists():
+        if required:
+            raise ValueError(f"Env file {env_path} does not exist; run EgoVerse setup_secret.sh.")
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip("'").strip('"'))
+
+
+def create_default_engine():
+    if not os.environ.get("SECRETS_ARN"):
+        load_env()
+    secrets_arn = os.environ.get("SECRETS_ARN")
+    if not secrets_arn:
+        raise RuntimeError("SECRETS_ARN is not set. Run EgoVerse setup_secret.sh first.")
+
+    secret = boto3.client("secretsmanager").get_secret_value(SecretId=secrets_arn)
+    cfg = json.loads(secret["SecretString"])
+    engine = create_engine(
+        URL.create(
+            "postgresql+psycopg",
+            username=cfg.get("username", cfg.get("user", cfg.get("USER"))),
+            password=cfg.get("password", cfg.get("PASSWORD")),
+            host=cfg.get("host", cfg.get("HOST")),
+            port=cfg.get("port", 5432),
+            database=cfg.get("dbname", cfg.get("DBNAME", "appdb")),
+            query={"sslmode": "require"},
+        ),
+        pool_pre_ping=True,
+    )
+    print("Tables in schema 'app':", inspect(engine).get_table_names(schema="app"))
+    return engine
+
+
+def episode_table_to_df(engine) -> pd.DataFrame:
+    metadata = MetaData()
+    episodes_tbl = Table("episodes", metadata, autoload_with=engine, schema="app")
+    with engine.connect() as conn:
+        result = conn.execute(select(episodes_tbl))
+        return pd.DataFrame(result.fetchall(), columns=result.keys())
 
 
 @lru_cache(maxsize=1)
@@ -238,6 +326,17 @@ def project_points(points_cam: np.ndarray, intrinsics: np.ndarray) -> np.ndarray
     return px / px[:, 2:3]
 
 
+def unwrap_jpeg_value(value):
+    for _ in range(8):
+        if isinstance(value, np.ndarray) and value.shape == ():
+            value = value.item()
+            continue
+        if isinstance(value, np.bytes_):
+            value = bytes(value)
+        break
+    return value
+
+
 def draw_handpose(
     image: np.ndarray,
     left: np.ndarray,
@@ -335,9 +434,7 @@ def render_frame(
     pose = frame_pose_data(cache_dir, episode_hash, frame, keypoint_offset, layout)
     g = pose["g"]
     frame = pose["frame"]
-    jpeg_value = g["images.front_1"][frame]
-    while isinstance(jpeg_value, np.ndarray) and jpeg_value.shape == ():
-        jpeg_value = jpeg_value.item()
+    jpeg_value = unwrap_jpeg_value(g["images.front_1"][frame])
     if not jpeg_value:
         raise ValueError(f"empty RGB frame {frame} in {episode_hash}")
     try:

@@ -1,11 +1,13 @@
 # Public EgoVerse Handpose Viewer Deploy
 
-This is the simplest deployment path for the local viewer.
+This is the simplest deployment path for the local viewer. The Docker image
+installs only the viewer runtime dependencies, not the full EgoVerse training
+stack.
 
 ## Build
 
 ```bash
-docker build -t egoverse-handpose-viewer .
+docker build --platform linux/amd64 -t egoverse-handpose-viewer .
 ```
 
 ## Run Locally
