@@ -378,6 +378,7 @@ def draw_handpose(
     return vis
 
 
+@lru_cache(maxsize=768)
 def frame_pose_data(
     cache_dir: Path,
     episode_hash: str,
@@ -422,6 +423,7 @@ def frame_pose_data(
     }
 
 
+@lru_cache(maxsize=384)
 def render_frame(
     cache_dir: Path,
     episode_hash: str,
@@ -458,6 +460,7 @@ def render_frame(
     return simplejpeg.encode_jpeg(overlay, quality=90, colorspace="RGB")
 
 
+@lru_cache(maxsize=768)
 def pose_json(
     cache_dir: Path,
     episode_hash: str,
@@ -587,6 +590,7 @@ let pitch3d = 0;
 let zoom3d = 1;
 let drag3d = null;
 const MAX_AUTO_SKIP = 8;
+const framePrefetchInflight = new Set();
 const $ = (id) => document.getElementById(id);
 function setStatus(s) { $("status").textContent = s; }
 function selectedEpisode() { return episodes[clipIndex]?.episode_hash; }
@@ -603,6 +607,30 @@ function prefetchAround(index) {
   for (const next of [index + 1, index + 2]) {
     const hash = episodes[next]?.episode_hash;
     if (hash) fetch("/api/prefetch?" + new URLSearchParams({episode_hash:hash}).toString()).catch(() => {});
+  }
+}
+function prefetchFramesAround(frameValue) {
+  const hash = selectedEpisode();
+  if (!hash || !current) return;
+  const maxFrame = Number($("frame").max);
+  const frame = Number(frameValue);
+  const kpOffset = $("kpOffset").value;
+  const layout = currentLayout();
+  const dot = $("dot").value;
+  for (const nextFrame of [frame + 1, frame + 2]) {
+    if (nextFrame > maxFrame) continue;
+    const key = `${hash}:${nextFrame}:${kpOffset}:${layout}:${dot}`;
+    if (framePrefetchInflight.has(key)) continue;
+    framePrefetchInflight.add(key);
+    const frameParams = new URLSearchParams({episode_hash:hash, frame:String(nextFrame), kp_offset:kpOffset, layout, dot, line:"1"});
+    const poseParams = new URLSearchParams({episode_hash:hash, frame:String(nextFrame), kp_offset:kpOffset, layout});
+    Promise.all([
+      fetch("/api/frame?" + frameParams.toString()).then(r => r.ok ? r.blob() : null),
+      fetch("/api/pose?" + poseParams.toString()).then(r => r.ok ? r.json() : null),
+    ]).catch(() => {}).finally(() => {
+      framePrefetchInflight.delete(key);
+      if (framePrefetchInflight.size > 20) framePrefetchInflight.clear();
+    });
   }
 }
 async function loadTasks() {
@@ -704,6 +732,7 @@ async function loadFrame(seq = requestSeq) {
   imageUrl = URL.createObjectURL(blob);
   $("viewer").src = imageUrl;
   loadPose(seq);
+  if (playing) prefetchFramesAround(frame);
   return {ok:true};
 }
 async function loadPose(seq = requestSeq) {
