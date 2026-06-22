@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import subprocess
@@ -457,7 +458,7 @@ def render_frame(
         dot,
         line,
     )
-    return simplejpeg.encode_jpeg(overlay, quality=90, colorspace="RGB")
+    return simplejpeg.encode_jpeg(overlay, quality=78, colorspace="RGB")
 
 
 @lru_cache(maxsize=768)
@@ -494,6 +495,24 @@ def pose_json(
         "edge_ranges": topology_cls.FINGER_EDGE_RANGES,
         "intrinsics": intrinsics.tolist(),
         "image_size": {"width": width, "height": height},
+    }
+
+
+@lru_cache(maxsize=384)
+def frame_bundle_json(
+    cache_dir: Path,
+    episode_hash: str,
+    frame: int,
+    keypoint_offset: int,
+    layout: str,
+    dot: int,
+    line: int,
+) -> dict:
+    body = render_frame(cache_dir, episode_hash, frame, keypoint_offset, layout, dot, line)
+    pose = pose_json(cache_dir, episode_hash, frame, keypoint_offset, layout)
+    return {
+        "image": "data:image/jpeg;base64," + base64.b64encode(body).decode("ascii"),
+        "pose": pose,
     }
 
 
@@ -623,11 +642,7 @@ function prefetchFramesAround(frameValue) {
     if (framePrefetchInflight.has(key)) continue;
     framePrefetchInflight.add(key);
     const frameParams = new URLSearchParams({episode_hash:hash, frame:String(nextFrame), kp_offset:kpOffset, layout, dot, line:"1"});
-    const poseParams = new URLSearchParams({episode_hash:hash, frame:String(nextFrame), kp_offset:kpOffset, layout});
-    Promise.all([
-      fetch("/api/frame?" + frameParams.toString()).then(r => r.ok ? r.blob() : null),
-      fetch("/api/pose?" + poseParams.toString()).then(r => r.ok ? r.json() : null),
-    ]).catch(() => {}).finally(() => {
+    fetch("/api/frame_bundle?" + frameParams.toString()).then(r => r.ok ? r.json() : null).catch(() => {}).finally(() => {
       framePrefetchInflight.delete(key);
       if (framePrefetchInflight.size > 20) framePrefetchInflight.clear();
     });
@@ -708,7 +723,7 @@ async function loadFrame(seq = requestSeq) {
   const p = new URLSearchParams({episode_hash:hash, frame, kp_offset:kpOffset, layout:currentLayout(), dot:$("dot").value, line:"1", t:Date.now()});
   let res;
   try {
-    res = await fetch("/api/frame?" + p.toString());
+    res = await fetch("/api/frame_bundle?" + p.toString());
   } catch (err) {
     const message = String(err);
     setStatus(`${clipIndex + 1}/${episodes.length} | ${current.task} | ${hash} | ${message}`);
@@ -726,12 +741,15 @@ async function loadFrame(seq = requestSeq) {
     stopPlay();
     return {ok:false, error:message};
   }
-  const blob = await res.blob();
+  const bundle = await res.json();
   if (seq !== requestSeq) return {ok:false, error:"stale request"};
-  if (imageUrl) URL.revokeObjectURL(imageUrl);
-  imageUrl = URL.createObjectURL(blob);
-  $("viewer").src = imageUrl;
-  loadPose(seq);
+  if (imageUrl) {
+    URL.revokeObjectURL(imageUrl);
+    imageUrl = null;
+  }
+  $("viewer").src = bundle.image;
+  pose3d = bundle.pose;
+  draw3d();
   if (playing) prefetchFramesAround(frame);
   return {ok:true};
 }
@@ -1024,6 +1042,18 @@ class Handler(BaseHTTPRequestHandler):
                         int(qs.get("frame", "0")),
                         int(qs.get("kp_offset", "0")),
                         qs.get("layout", "raw-aria"),
+                    )
+                )
+            elif parsed.path == "/api/frame_bundle":
+                self.send_json(
+                    frame_bundle_json(
+                        self.cache_dir,
+                        qs["episode_hash"],
+                        int(qs.get("frame", "0")),
+                        int(qs.get("kp_offset", "0")),
+                        qs.get("layout", "raw-aria"),
+                        max(1, int(qs.get("dot", "2"))),
+                        max(1, int(qs.get("line", "1"))),
                     )
                 )
             elif parsed.path == "/api/frame":
