@@ -29,6 +29,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from egoverse_handpose_dataset import EgoVerseHandPoseDataset, IMAGENET_MEAN, IMAGENET_STD  # noqa: E402
 
+VIZ_FILE_RE = re.compile(r"^epoch_(?P<epoch>\d+)(?:_step_(?P<step>\d+))?_sample_(?P<sample>\d+)_")
 VIZ_SAMPLE_RE = re.compile(r"sample_(\d+)")
 
 HAND_EDGES = (
@@ -245,8 +246,31 @@ def draw_hand(
             cv2.circle(image, (x, y), radius, color, -1, cv2.LINE_AA)
 
 
+def prune_duplicate_visualizations(viz_dir: Path) -> None:
+    candidates: dict[tuple[int, str], list[tuple[float, Path]]] = {}
+    for path in viz_dir.glob("*.png"):
+        match = VIZ_FILE_RE.match(path.stem)
+        if not match:
+            continue
+        epoch = int(match.group("epoch"))
+        sample = match.group("sample")
+        step_text = match.group("step")
+        step = float("inf") if step_text is None else int(step_text)
+        candidates.setdefault((epoch, sample), []).append((step, path))
+
+    for paths in candidates.values():
+        if len(paths) <= 1:
+            continue
+        keep = max(paths, key=lambda item: (item[0], item[1].stat().st_mtime))[1]
+        for _, path in paths:
+            if path == keep:
+                continue
+            path.unlink(missing_ok=True)
+
+
 def write_live_metrics_html(out_dir: Path) -> None:
     run_title = html.escape(out_dir.name.replace("_", " ").title())
+    prune_duplicate_visualizations(out_dir / "viz")
     viz_images = sorted((out_dir / "viz").glob("*.png"))
     grouped_viz: dict[str, list[Path]] = {}
     for path in viz_images:
