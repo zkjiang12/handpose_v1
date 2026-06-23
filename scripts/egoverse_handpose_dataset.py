@@ -149,6 +149,7 @@ class EgoVerseHandPoseDataset(Dataset):
             "image": self._image_tensor(group, frame_idx, row["image_key"]),
             "keypoints": torch.from_numpy(keypoints),
             "valid_mask": torch.from_numpy(valid_mask),
+            "row_idx": idx,
             "episode_hash": row["episode_hash"],
             "frame_idx": frame_idx,
             "source": row["source"],

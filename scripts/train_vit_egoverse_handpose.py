@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import math
 import os
 import re
 import subprocess
@@ -31,6 +32,7 @@ from egoverse_handpose_dataset import EgoVerseHandPoseDataset, IMAGENET_MEAN, IM
 
 VIZ_FILE_RE = re.compile(r"^epoch_(?P<epoch>\d+)(?:_step_(?P<step>\d+))?_sample_(?P<sample>\d+)_")
 VIZ_SAMPLE_RE = re.compile(r"sample_(\d+)")
+EPOCH_FILE_RE = re.compile(r"^epoch_(?P<epoch>\d+)")
 
 HAND_EDGES = (
     (0, 1), (1, 2), (2, 3), (3, 4),
@@ -146,6 +148,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--viz-every", type=int, default=0, help="Save prediction overlays every N epochs; 0 disables.")
     parser.add_argument("--viz-per-epoch", type=int, default=0, help="Save prediction overlays N times during each viz epoch; 0 saves at epoch end only.")
     parser.add_argument("--viz-samples", type=int, default=4)
+    parser.add_argument("--ranked-viz-every", type=int, default=0, help="After test eval, render best/worst test samples every N epochs; 0 disables.")
+    parser.add_argument("--ranked-viz-percentile", type=float, default=10.0, help="Percentile bucket for ranked visualizations, e.g. 10 renders bottom/top 10%% by MPJPE.")
+    parser.add_argument("--ranked-viz-max-samples", type=int, default=10, help="Max samples to render per ranked bucket; 0 disables the cap.")
     parser.add_argument("--gt-radius", type=int, default=1)
     parser.add_argument("--pred-radius", type=int, default=2)
     parser.add_argument("--plot-every", type=int, default=1, help="Update loss chart every N epochs; 0 disables.")
@@ -296,6 +301,26 @@ def mpjpe_mm(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> to
     return distances[mask].mean() * 1000.0
 
 
+@torch.no_grad()
+def per_sample_mpjpe_mm(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    distances = torch.linalg.norm(pred - target, dim=-1)
+    flat_distances = distances.flatten(1)
+    flat_mask = mask.flatten(1)
+    valid_counts = flat_mask.sum(dim=1)
+    sample_errors = torch.full(
+        (pred.shape[0],),
+        float("nan"),
+        dtype=distances.dtype,
+        device=distances.device,
+    )
+    valid_samples = valid_counts > 0
+    if torch.any(valid_samples):
+        sample_errors[valid_samples] = (
+            (flat_distances * flat_mask).sum(dim=1)[valid_samples] / valid_counts[valid_samples]
+        ) * 1000.0
+    return sample_errors
+
+
 def project_points(points_cam: np.ndarray, image_size: int) -> np.ndarray:
     fx = 133.25430222 * 2 * (image_size / 640.0)
     fy = 133.25430222 * 2 * (image_size / 480.0)
@@ -390,12 +415,60 @@ def build_grouped_gallery(out_dir: Path, image_dir: Path) -> str:
     return gallery or "    <p>No images written yet.</p>"
 
 
+def image_figure_html(out_dir: Path, path: Path) -> str:
+    return f"""        <figure>
+          <img src="{html.escape(str(path.relative_to(out_dir)))}" alt="{html.escape(path.stem)}">
+          <figcaption>{html.escape(path.stem)}</figcaption>
+        </figure>
+"""
+
+
+def epoch_from_path(path: Path) -> int | None:
+    match = EPOCH_FILE_RE.match(path.stem)
+    return int(match.group("epoch")) if match else None
+
+
+def latest_epoch_images(paths: list[Path]) -> tuple[int | None, list[Path]]:
+    epoch_paths = [(epoch_from_path(path), path) for path in paths]
+    epochs = [epoch for epoch, _ in epoch_paths if epoch is not None]
+    if not epochs:
+        return None, paths
+    latest_epoch = max(epochs)
+    return latest_epoch, [path for epoch, path in epoch_paths if epoch == latest_epoch]
+
+
+def build_ranked_gallery(out_dir: Path, image_root: Path) -> str:
+    if not image_root.exists():
+        return "    <p>No ranked visualizations written yet.</p>"
+
+    sections = []
+    for bucket_dir in sorted(path for path in image_root.iterdir() if path.is_dir()):
+        images = sorted(bucket_dir.glob("*.png"))
+        if not images:
+            continue
+        latest_epoch, images = latest_epoch_images(images)
+        title = bucket_dir.name.replace("_", " ")
+        if latest_epoch is not None:
+            title = f"{title} - latest epoch {latest_epoch}"
+        sections.append(
+            f"""    <section class="sample-row">
+      <h3>{html.escape(title)}</h3>
+      <div class="sample-strip">
+{''.join(image_figure_html(out_dir, path) for path in images)}
+      </div>
+    </section>"""
+        )
+    return "\n".join(sections) or "    <p>No ranked visualizations written yet.</p>"
+
+
 def write_live_metrics_html(out_dir: Path) -> None:
     run_title = html.escape(out_dir.name.replace("_", " ").title())
     prune_duplicate_visualizations(out_dir / "viz")
     prune_duplicate_visualizations(out_dir / "viz3d")
     overlay_items = build_grouped_gallery(out_dir, out_dir / "viz")
     pose3d_items = build_grouped_gallery(out_dir, out_dir / "viz3d")
+    ranked_overlay_items = build_ranked_gallery(out_dir, out_dir / "ranked_viz")
+    ranked_pose3d_items = build_ranked_gallery(out_dir, out_dir / "ranked_viz3d")
 
     page = f"""<!doctype html>
 <html>
@@ -437,6 +510,20 @@ def write_live_metrics_html(out_dir: Path) -> None:
     <p>Green/blue are ground truth hands; red/magenta are current model predictions.</p>
     <div class="gallery">
 {pose3d_items}
+    </div>
+  </section>
+  <section>
+    <h2>Ranked Test Overlays</h2>
+    <p>Bottom buckets are lowest MPJPE examples; top buckets are highest MPJPE examples from epoch-end test inference.</p>
+    <div class="gallery">
+{ranked_overlay_items}
+    </div>
+  </section>
+  <section>
+    <h2>Ranked Test 3D Poses</h2>
+    <p>3D renderings for the same ranked examples.</p>
+    <div class="gallery">
+{ranked_pose3d_items}
     </div>
   </section>
 </body>
@@ -620,8 +707,13 @@ def save_visualizations(
     max_samples: int,
     gt_radius: int,
     pred_radius: int,
+    pose3d_dir: Path | None = None,
+    sample_labels: list[str] | None = None,
+    title_labels: list[str] | None = None,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
+    pose3d_dir = pose3d_dir or out_dir.parent / "viz3d"
+    pose3d_dir.mkdir(parents=True, exist_ok=True)
     was_training = model.training
     model.eval()
     image = batch["image"].to(device)
@@ -647,18 +739,124 @@ def save_visualizations(
         episode = batch["episode_hash"][i]
         frame = int(batch["frame_idx"][i])
         step_label = f"_step_{step:04d}" if step is not None else ""
-        out = out_dir / f"epoch_{epoch:03d}{step_label}_sample_{i:02d}_{episode}_{frame}.png"
+        sample_label = sample_labels[i] if sample_labels is not None else f"sample_{i:02d}"
+        title_label = title_labels[i] if title_labels is not None else f"sample {i}"
+        out = out_dir / f"epoch_{epoch:03d}{step_label}_{sample_label}_{episode}_{frame}.png"
         cv2.imwrite(str(out), cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
-        pose3d_out = out_dir.parent / "viz3d" / out.name
+        pose3d_out = pose3d_dir / out.name
         save_3d_hand_pose_plot(
             target_cpu[i],
             pred_cpu[i],
             mask_cpu[i],
             pose3d_out,
-            title=f"epoch {epoch} sample {i}",
+            title=f"epoch {epoch} {title_label}",
         )
     if was_training:
         model.train()
+
+
+def filename_float(value: float) -> str:
+    return f"{value:.2f}".replace(".", "p")
+
+
+def percentile_bucket_label(percentile: float) -> str:
+    return f"{percentile:g}".replace(".", "p") + "pct"
+
+
+def ranked_bucket_size(total_samples: int, percentile: float, max_samples: int) -> int:
+    if total_samples <= 0:
+        return 0
+    size = max(1, math.ceil(total_samples * (percentile / 100.0)))
+    if max_samples > 0:
+        size = min(size, max_samples)
+    return min(size, total_samples)
+
+
+def select_ranked_sample_metrics(
+    sample_metrics: list[dict],
+    *,
+    percentile: float,
+    max_samples: int,
+) -> dict[str, list[dict]]:
+    valid_metrics = [
+        row for row in sample_metrics
+        if math.isfinite(float(row["mpjpe_mm"]))
+    ]
+    if not valid_metrics:
+        return {}
+    sorted_metrics = sorted(valid_metrics, key=lambda row: float(row["mpjpe_mm"]))
+    size = ranked_bucket_size(len(sorted_metrics), percentile, max_samples)
+    if size <= 0:
+        return {}
+    label = percentile_bucket_label(percentile)
+    return {
+        f"bottom_{label}_best": sorted_metrics[:size],
+        f"top_{label}_worst": list(reversed(sorted_metrics[-size:])),
+    }
+
+
+def append_ranked_sample_index(out_dir: Path, epoch: int, ranked: dict[str, list[dict]], percentile: float) -> None:
+    index_path = out_dir / "ranked_viz" / "ranked_samples.jsonl"
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    with index_path.open("a") as f:
+        for bucket, rows in ranked.items():
+            for rank, row in enumerate(rows, start=1):
+                payload = {
+                    "epoch": epoch,
+                    "bucket": bucket,
+                    "rank": rank,
+                    "percentile": percentile,
+                    **row,
+                }
+                f.write(json.dumps(payload) + "\n")
+
+
+@torch.no_grad()
+def save_ranked_visualizations(
+    model: nn.Module,
+    dataset: EgoVerseHandPoseDataset,
+    sample_metrics: list[dict],
+    device: torch.device,
+    out_dir: Path,
+    *,
+    epoch: int,
+    percentile: float,
+    max_samples: int,
+    gt_radius: int,
+    pred_radius: int,
+) -> None:
+    ranked = select_ranked_sample_metrics(
+        sample_metrics,
+        percentile=percentile,
+        max_samples=max_samples,
+    )
+    if not ranked:
+        return
+
+    append_ranked_sample_index(out_dir, epoch, ranked, percentile)
+    for bucket, rows in ranked.items():
+        batch = default_collate([dataset[int(row["row_idx"])] for row in rows])
+        sample_labels = [
+            f"rank_{rank:02d}_sample_{int(row['row_idx']):06d}_mpjpe_{filename_float(float(row['mpjpe_mm']))}mm"
+            for rank, row in enumerate(rows, start=1)
+        ]
+        title_labels = [
+            f"{bucket.replace('_', ' ')} rank {rank} MPJPE {float(row['mpjpe_mm']):.2f} mm"
+            for rank, row in enumerate(rows, start=1)
+        ]
+        save_visualizations(
+            model,
+            batch,
+            device,
+            out_dir / "ranked_viz" / bucket,
+            epoch=epoch,
+            max_samples=len(rows),
+            gt_radius=gt_radius,
+            pred_radius=pred_radius,
+            pose3d_dir=out_dir / "ranked_viz3d" / bucket,
+            sample_labels=sample_labels,
+            title_labels=title_labels,
+        )
 
 
 def make_loader(
@@ -771,11 +969,13 @@ def evaluate(
     device: torch.device,
     *,
     max_steps: int | None,
-) -> dict[str, float]:
+    collect_sample_metrics: bool = False,
+) -> tuple[dict[str, float], list[dict]]:
     model.eval()
     total_loss = 0.0
     total_mpjpe = 0.0
     steps = 0
+    sample_metrics: list[dict] = []
     for batch in loader:
         image = batch["image"].to(device, non_blocking=True)
         target = batch["keypoints"].to(device, non_blocking=True)
@@ -783,14 +983,33 @@ def evaluate(
         pred = model(image)
         total_loss += float(masked_smooth_l1(pred, target, mask).cpu())
         total_mpjpe += float(mpjpe_mm(pred, target, mask).cpu())
+        if collect_sample_metrics:
+            sample_errors = per_sample_mpjpe_mm(pred, target, mask).detach().cpu().numpy()
+            row_indices = batch["row_idx"].detach().cpu().numpy()
+            for i, sample_mpjpe in enumerate(sample_errors):
+                sample_metrics.append(
+                    {
+                        "row_idx": int(row_indices[i]),
+                        "episode_hash": batch["episode_hash"][i],
+                        "frame_idx": int(batch["frame_idx"][i]),
+                        "mpjpe_mm": float(sample_mpjpe),
+                    }
+                )
         steps += 1
         if max_steps is not None and steps >= max_steps:
             break
-    return {"loss": total_loss / max(1, steps), "mpjpe_mm": total_mpjpe / max(1, steps), "steps": steps}
+    metrics = {"loss": total_loss / max(1, steps), "mpjpe_mm": total_mpjpe / max(1, steps), "steps": steps}
+    return metrics, sample_metrics
 
 
 def main() -> None:
     args = parse_args()
+    if args.ranked_viz_every < 0:
+        raise ValueError("--ranked-viz-every must be >= 0")
+    if args.ranked_viz_every > 0 and not (0.0 < args.ranked_viz_percentile <= 50.0):
+        raise ValueError("--ranked-viz-percentile must be > 0 and <= 50")
+    if args.ranked_viz_max_samples < 0:
+        raise ValueError("--ranked-viz-max-samples must be >= 0")
     head_hidden_dims = parse_head_hidden_dims(args.head_hidden_dims)
     args.parsed_head_hidden_dims = list(head_hidden_dims)
     distributed, rank, _, local_rank = setup_distributed(args.distributed)
@@ -862,6 +1081,8 @@ def main() -> None:
         (out_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
         (out_dir / "viz").mkdir(parents=True, exist_ok=True)
         (out_dir / "viz3d").mkdir(parents=True, exist_ok=True)
+        (out_dir / "ranked_viz").mkdir(parents=True, exist_ok=True)
+        (out_dir / "ranked_viz3d").mkdir(parents=True, exist_ok=True)
         config_path = out_dir / "config.json"
         if not args.resume or not config_path.exists():
             config_path.write_text(json.dumps(vars(args), indent=2) + "\n")
@@ -886,6 +1107,11 @@ def main() -> None:
             viz_batch is not None
             and args.viz_every > 0
             and (epoch + 1) % args.viz_every == 0
+            and is_rank0(rank)
+        )
+        should_ranked_viz_epoch = (
+            args.ranked_viz_every > 0
+            and (epoch + 1) % args.ranked_viz_every == 0
             and is_rank0(rank)
         )
         viz_steps = None
@@ -924,7 +1150,13 @@ def main() -> None:
             viz_steps=viz_steps,
             viz_callback=viz_callback,
         )
-        test_metrics = evaluate(model, test_loader, device, max_steps=args.max_eval_steps)
+        test_metrics, test_sample_metrics = evaluate(
+            model,
+            test_loader,
+            device,
+            max_steps=args.max_eval_steps,
+            collect_sample_metrics=should_ranked_viz_epoch,
+        )
         if is_rank0(rank):
             metrics = {"epoch": epoch + 1, "train": train_metrics, "test": test_metrics}
             metrics_history.append(metrics)
@@ -954,6 +1186,19 @@ def main() -> None:
                     out_dir / "viz",
                     epoch=epoch + 1,
                     max_samples=args.viz_samples,
+                    gt_radius=args.gt_radius,
+                    pred_radius=args.pred_radius,
+                )
+            if should_ranked_viz_epoch:
+                save_ranked_visualizations(
+                    model.module if isinstance(model, DistributedDataParallel) else model,
+                    test_dataset,
+                    test_sample_metrics,
+                    device,
+                    out_dir,
+                    epoch=epoch + 1,
+                    percentile=args.ranked_viz_percentile,
+                    max_samples=args.ranked_viz_max_samples,
                     gt_radius=args.gt_radius,
                     pred_radius=args.pred_radius,
                 )

@@ -65,5 +65,8 @@ python scripts/train_vit_egoverse_handpose.py \
   --viz-every "${VIZ_EVERY:-1}" \
   --viz-per-epoch "${VIZ_PER_EPOCH:-1}" \
   --viz-samples "${VIZ_SAMPLES:-4}" \
+  --ranked-viz-every "${RANKED_VIZ_EVERY:-1}" \
+  --ranked-viz-percentile "${RANKED_VIZ_PERCENTILE:-10}" \
+  --ranked-viz-max-samples "${RANKED_VIZ_MAX_SAMPLES:-10}" \
   "${FREEZE_ARG[@]}" \
   "${RESUME_ARG[@]}"

@@ -76,6 +76,7 @@ Expected outputs:
 /workspace/runs/smoke/last.pt
 /workspace/runs/smoke/loss_curve.png
 /workspace/runs/smoke/viz/
+/workspace/runs/smoke/viz3d/
 ```
 
 ## Resume Smoke Run
@@ -233,6 +234,21 @@ tail -n 5 /workspace/runs/<run_name>/metrics.jsonl
 tail -f /workspace/runs/<run_name>.log
 ```
 
+The DINO wrappers render ranked test examples at each epoch by default:
+
+```text
+/workspace/runs/<run_name>/ranked_viz/bottom_10pct_best/
+/workspace/runs/<run_name>/ranked_viz/top_10pct_worst/
+/workspace/runs/<run_name>/ranked_viz3d/bottom_10pct_best/
+/workspace/runs/<run_name>/ranked_viz3d/top_10pct_worst/
+/workspace/runs/<run_name>/ranked_viz/ranked_samples.jsonl
+```
+
+`RANKED_VIZ_PERCENTILE=10` selects the lowest/highest 10% of evaluated test
+frames by MPJPE, and `RANKED_VIZ_MAX_SAMPLES=10` caps each bucket to 10 images
+per epoch. Set `RANKED_VIZ_EVERY=0` to disable it or
+`RANKED_VIZ_MAX_SAMPLES=0` to render the full percentile bucket.
+
 Useful overrides:
 
 ```bash
@@ -242,6 +258,9 @@ Useful overrides:
 -e NUM_WORKERS=12
 -e MODEL_NAME=vit_large_patch16_224
 -e RESUME=/runs/vit_base_001/last.pt
+-e RANKED_VIZ_EVERY=1
+-e RANKED_VIZ_PERCENTILE=10
+-e RANKED_VIZ_MAX_SAMPLES=10
 ```
 
 ## Multi-GPU

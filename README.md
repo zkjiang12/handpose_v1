@@ -176,7 +176,10 @@ Start a real local baseline run when ready:
   --batch-size 64 \
   --num-workers 8 \
   --viz-every 1 \
-  --viz-samples 4
+  --viz-samples 4 \
+  --ranked-viz-every 1 \
+  --ranked-viz-percentile 10 \
+  --ranked-viz-max-samples 10
 ```
 
 If `--out-dir` is omitted, the script creates the next numbered run folder:
@@ -209,6 +212,11 @@ outputs/vit_runs/<run>/metrics_live.html       Auto-refreshing chart + overlay p
 outputs/vit_runs/<run>/last.pt                 Latest checkpoint
 outputs/vit_runs/<run>/checkpoints/epoch_*.pt  Per-epoch checkpoints
 outputs/vit_runs/<run>/viz/*.png               Predicted-vs-GT overlays
+outputs/vit_runs/<run>/viz3d/*.png             3D GT-vs-prediction plots
+outputs/vit_runs/<run>/ranked_viz/*/*.png      Best/worst test overlays by MPJPE
+outputs/vit_runs/<run>/ranked_viz3d/*/*.png    Best/worst 3D plots by MPJPE
+outputs/vit_runs/<run>/ranked_viz/ranked_samples.jsonl
+                                                Ranked sample index with MPJPE
 ```
 
 Overlay colors:
@@ -244,7 +252,8 @@ python scripts/train_vit_egoverse_handpose.py \
   --num-workers 8 \
   --viz-every 1 \
   --viz-per-epoch 1 \
-  --viz-samples 4
+  --viz-samples 4 \
+  --ranked-viz-every 1
 ```
 
 Or use the Docker-oriented wrapper:
