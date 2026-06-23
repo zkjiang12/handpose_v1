@@ -13,9 +13,17 @@ shows the matching 3D handpose in camera-frame coordinates.
 ```text
 scripts/egoverse_handpose_viewer.py   Browser visualizer and Python backend
 scripts/view_egoverse_keypoints.py    Older script for rendering preview videos
+scripts/audit_egoverse_dataset.py     Local Zarr metadata/schema audit
+scripts/build_egoverse_handpose_manifest.py
+                                      Aria frame-level train/test manifest builder
+scripts/check_egoverse_handpose_dataset.py
+                                      Manifest and dataset smoke checks
+scripts/train_vit_egoverse_handpose.py
+                                      Basic ViT hand-pose training entrypoint
 Dockerfile                            Docker image for local/prod deployment
 deploy/start.sh                       Container startup script
 deploy/requirements-viewer.txt        Minimal Python deps for the viewer
+deploy/RUNPOD_TRAINING.md             RunPod Docker training workflow
 deploy/README.md                      Deployment notes
 ```
 
@@ -74,6 +82,154 @@ http://127.0.0.1:8770
 
 The first clip load can be slow because the viewer downloads and caches a Zarr
 episode. Later loads are faster when the cache is warm.
+
+## Dataset Audit
+
+Before training, run the dataset audit to see which cached episodes have the
+fields needed for hand-pose supervision:
+
+```bash
+cd /Users/you/dev/handpose_v1
+/Users/you/dev/EgoVerse/emimic/bin/python \
+  scripts/audit_egoverse_dataset.py \
+  --cache-dir /Users/you/data/egoverse_viewer_cache \
+  --out-dir outputs/dataset_audit
+```
+
+If `--cache-dir` is omitted, the script checks the common local cache paths:
+
+```text
+/Users/zikangjiang/data/egoverse_viewer_cache
+/Users/zikangjiang/data/egoverse_keypoint_cache
+```
+
+The audit writes:
+
+```text
+outputs/dataset_audit/episodes.csv         Per-episode fields, shapes, dtypes, warnings
+outputs/dataset_audit/episodes.json        Same data in JSON
+outputs/dataset_audit/source_summary.csv   Per-source aggregate counts
+outputs/dataset_audit/source_summary.json  Same summary in JSON
+```
+
+For hand-pose training, the useful episodes are the ones with:
+
+```text
+images.front_1
+obs_head_pose
+left.obs_keypoints or right.obs_keypoints
+```
+
+## Aria Training Prep
+
+Run these commands from the repo root:
+
+```bash
+cd /Users/zikangjiang/dev/handpose_v1
+```
+
+Build an Aria-only frame manifest from the audit output:
+
+```bash
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python \
+  scripts/build_egoverse_handpose_manifest.py \
+  --audit-csv outputs/dataset_audit/episodes.csv \
+  --out-dir outputs/handpose_dataset \
+  --source aria/human \
+  --frame-stride 5 \
+  --test-fraction 0.2 \
+  --seed 42 \
+  --min-valid-joints 15
+```
+
+The manifest uses canonical `left/right.obs_keypoints`, not Aria-native
+`left/right.obs_aria_keypoints`. It keeps single-hand frames and splits by
+episode so train and test do not share clips.
+
+Run the lightweight dataset checks:
+
+```bash
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python \
+  scripts/check_egoverse_handpose_dataset.py \
+  --train-csv outputs/handpose_dataset/train.csv \
+  --test-csv outputs/handpose_dataset/test.csv
+```
+
+Dry-run the training entrypoint without training:
+
+```bash
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python \
+  scripts/train_vit_egoverse_handpose.py \
+  --train-csv outputs/handpose_dataset/train.csv \
+  --test-csv outputs/handpose_dataset/test.csv \
+  --dry-run
+```
+
+Start a real local baseline run when ready:
+
+```bash
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python \
+  scripts/train_vit_egoverse_handpose.py \
+  --train-csv outputs/handpose_dataset/train.csv \
+  --test-csv outputs/handpose_dataset/test.csv \
+  --epochs 20 \
+  --batch-size 64 \
+  --num-workers 8 \
+  --viz-every 1 \
+  --viz-samples 4
+```
+
+If `--out-dir` is omitted, the script creates the next numbered run folder:
+`outputs/vit_runs/run_001`, `outputs/vit_runs/run_002`, and so on. Pass
+`--out-dir outputs/vit_runs/my_name` only when you want a custom run name.
+
+For the smallest visual smoke run, train on a tiny subset and save overlays
+every epoch:
+
+```bash
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python \
+  scripts/train_vit_egoverse_handpose.py \
+  --train-csv outputs/handpose_dataset/train.csv \
+  --test-csv outputs/handpose_dataset/test.csv \
+  --epochs 5 \
+  --batch-size 8 \
+  --num-workers 4 \
+  --overfit-batches 4 \
+  --viz-every 1 \
+  --viz-samples 4 \
+  --open-live-plot
+```
+
+Training writes:
+
+```text
+outputs/vit_runs/<run>/metrics.jsonl           Loss and MPJPE per epoch
+outputs/vit_runs/<run>/loss_curve.png          Live-updated loss/MPJPE chart
+outputs/vit_runs/<run>/metrics_live.html       Auto-refreshing chart + overlay page
+outputs/vit_runs/<run>/last.pt                 Latest checkpoint
+outputs/vit_runs/<run>/checkpoints/epoch_*.pt  Per-epoch checkpoints
+outputs/vit_runs/<run>/viz/*.png               Predicted-vs-GT overlays
+```
+
+Overlay colors:
+
+```text
+GT left/right: green and blue, with small points and skeleton edges
+Pred left/right: red and pink, with skeleton edges
+```
+
+For a multi-GPU run:
+
+```bash
+torchrun --nproc_per_node 4 \
+  scripts/train_vit_egoverse_handpose.py \
+  --train-csv outputs/handpose_dataset/train.csv \
+  --test-csv outputs/handpose_dataset/test.csv \
+  --distributed
+```
+
+For cloud GPU training with Docker on RunPod, see
+[`deploy/RUNPOD_TRAINING.md`](deploy/RUNPOD_TRAINING.md).
 
 ## Local Python Run
 

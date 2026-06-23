@@ -1,0 +1,12 @@
+boto3
+matplotlib
+numpy
+opencv-python-headless
+pandas
+psycopg[binary]
+scipy
+simplejpeg
+sqlalchemy
+s5cmd
+timm
+zarr==3.1.5

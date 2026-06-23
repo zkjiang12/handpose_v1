@@ -1,0 +1,33 @@
+FROM pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    EGOVERSE_REPO=/opt/EgoVerse \
+    EGOVERSE_CACHE_DIR=/data/egoverse_cache \
+    RUNS_ROOT=/runs
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    git \
+    libglib2.0-0 \
+    libgl1 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 https://github.com/GaTech-RL2/EgoVerse.git "$EGOVERSE_REPO"
+
+WORKDIR /app
+COPY deploy/requirements-train.txt /app/deploy/requirements-train.txt
+RUN pip install -r /app/deploy/requirements-train.txt
+
+COPY . /app
+
+RUN chmod +x /app/deploy/train_smoke.sh /app/deploy/train_vit_base.sh && \
+    mkdir -p "$EGOVERSE_CACHE_DIR" "$RUNS_ROOT"
+
+CMD ["bash", "deploy/train_smoke.sh"]

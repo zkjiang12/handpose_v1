@@ -3,6 +3,10 @@
 __pycache__/
 *.pyc
 outputs/
+!outputs/
+outputs/*
+!outputs/handpose_dataset/
+!outputs/handpose_dataset/*.csv
+!outputs/handpose_dataset/*.json
 .env
 .egoverse_env
-
