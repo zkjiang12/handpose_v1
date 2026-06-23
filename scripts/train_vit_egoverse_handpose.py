@@ -280,15 +280,16 @@ def write_live_metrics_html(out_dir: Path) -> None:
   <style>
     body {{ margin: 24px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #111827; }}
     h1, h2 {{ margin: 0 0 12px; }}
-    h3 {{ margin: 0 0 8px; font-size: 15px; color: #334155; }}
+    h3 {{ margin: 0 0 4px; font-size: 13px; color: #334155; }}
     section {{ margin-top: 28px; }}
     .chart {{ max-width: min(1100px, 100%); border: 1px solid #cbd5e1; background: white; }}
-    .gallery {{ display: grid; gap: 18px; max-width: 100%; }}
+    .gallery {{ display: grid; gap: 14px; max-width: 100%; }}
     .sample-row {{ margin-top: 0; }}
-    .sample-strip {{ display: flex; gap: 14px; overflow-x: auto; padding-bottom: 4px; }}
-    figure {{ margin: 0; padding: 8px; border: 1px solid #cbd5e1; background: white; }}
-    figure img {{ width: 224px; display: block; image-rendering: auto; }}
-    figcaption {{ margin-top: 6px; font-size: 12px; color: #475569; overflow-wrap: anywhere; }}
+    .sample-strip {{ display: flex; gap: 0; overflow-x: auto; padding-bottom: 2px; }}
+    figure {{ margin: 0; padding: 3px; border: 1px solid #cbd5e1; background: white; }}
+    figure + figure {{ border-left: 0; }}
+    figure img {{ width: 160px; display: block; image-rendering: auto; }}
+    figcaption {{ margin-top: 3px; width: 160px; max-height: 22px; overflow: hidden; font-size: 8px; line-height: 1.15; color: #475569; overflow-wrap: anywhere; }}
   </style>
 </head>
 <body>
