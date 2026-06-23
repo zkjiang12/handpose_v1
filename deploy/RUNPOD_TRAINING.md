@@ -176,6 +176,7 @@ nohup env \
   BATCH_SIZE=64 \
   NUM_WORKERS=8 \
   LR=1e-4 \
+  SAVE_EVERY=10 \
   HEAD_TYPE=linear \
   bash deploy/train_dinov3_base.sh \
   > /workspace/runs/dinov3_base_linear_001.log 2>&1 &
@@ -195,6 +196,7 @@ nohup env \
   BATCH_SIZE=64 \
   NUM_WORKERS=8 \
   LR=1e-4 \
+  SAVE_EVERY=10 \
   HEAD_TYPE=mlp \
   HEAD_HIDDEN_DIMS=2048,1024 \
   HEAD_DROPOUT=0.1 \
@@ -216,6 +218,7 @@ nohup env \
   BATCH_SIZE=64 \
   NUM_WORKERS=8 \
   LR=1e-4 \
+  SAVE_EVERY=10 \
   HEAD_TYPE=mlp \
   HEAD_HIDDEN_DIMS=1024,512 \
   HEAD_DROPOUT=0.1 \

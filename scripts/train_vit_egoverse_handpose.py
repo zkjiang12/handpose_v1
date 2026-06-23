@@ -152,7 +152,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log-every-steps", type=int, default=0, help="Print/write train metrics every N batches; 0 disables.")
     parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True, help="Show tqdm progress bars.")
     parser.add_argument("--open-live-plot", action="store_true", help="Open a local auto-refreshing metrics HTML page.")
-    parser.add_argument("--save-every", type=int, default=1, help="Save epoch checkpoint every N epochs; 0 disables.")
+    parser.add_argument("--save-every", type=int, default=10, help="Save epoch checkpoint every N epochs; 0 disables.")
     parser.add_argument("--resume", default=None, help="Resume from a checkpoint such as /runs/name/last.pt.")
     parser.add_argument("--distributed", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Build data/model and exit without training.")
