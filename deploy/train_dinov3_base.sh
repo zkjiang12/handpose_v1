@@ -6,7 +6,7 @@ export EGOVERSE_REPO="${EGOVERSE_REPO:-/opt/EgoVerse}"
 
 TRAIN_CSV="${TRAIN_CSV:-outputs/handpose_dataset/train.csv}"
 TEST_CSV="${TEST_CSV:-outputs/handpose_dataset/test.csv}"
-OUT_DIR="${OUT_DIR:-/runs/dinov3_small_001}"
+OUT_DIR="${OUT_DIR:-/runs/dinov3_base_001}"
 RESUME_ARG=()
 FREEZE_ARG=()
 HEAD_ARGS=()
@@ -41,7 +41,7 @@ fi
 
 HEAD_ARGS=(
   --head-type "${HEAD_TYPE:-linear}"
-  --head-hidden-dims "${HEAD_HIDDEN_DIMS:-1024,512}"
+  --head-hidden-dims "${HEAD_HIDDEN_DIMS:-2048,1024}"
   --head-dropout "${HEAD_DROPOUT:-0.0}"
 )
 
@@ -49,10 +49,10 @@ python scripts/train_vit_egoverse_handpose.py \
   --train-csv "$TRAIN_CSV" \
   --test-csv "$TEST_CSV" \
   --out-dir "$OUT_DIR" \
-  --epochs "${EPOCHS:-20}" \
-  --batch-size "${BATCH_SIZE:-32}" \
+  --epochs "${EPOCHS:-100}" \
+  --batch-size "${BATCH_SIZE:-64}" \
   --num-workers "${NUM_WORKERS:-8}" \
-  --model-name "${MODEL_NAME:-vit_small_patch16_dinov3}" \
+  --model-name "${MODEL_NAME:-vit_base_patch16_dinov3}" \
   --backbone-source "${BACKBONE_SOURCE:-timm}" \
   --pretrained \
   --lr "${LR:-1e-4}" \

@@ -156,6 +156,80 @@ For a cheaper first pass that only trains the hand-pose head:
 -e FREEZE_BACKBONE=1
 ```
 
+## Overnight DINOv3 Sweep
+
+Use one pod/GPU per run. These commands assume the pod already has the repo at
+`/workspace/handpose_v1`, the cache at `/workspace/egoverse_cache`, and runs at
+`/workspace/runs`.
+
+DINOv3-B with the linear head:
+
+```bash
+cd /workspace/handpose_v1
+git pull --ff-only origin main
+
+nohup env \
+  EGOVERSE_CACHE_DIR=/workspace/egoverse_cache \
+  OUT_DIR=/workspace/runs/dinov3_base_linear_001 \
+  CACHE_BEFORE_TRAIN=0 \
+  EPOCHS=100 \
+  BATCH_SIZE=64 \
+  NUM_WORKERS=8 \
+  LR=1e-4 \
+  HEAD_TYPE=linear \
+  bash deploy/train_dinov3_base.sh \
+  > /workspace/runs/dinov3_base_linear_001.log 2>&1 &
+```
+
+DINOv3-B with the larger MLP head:
+
+```bash
+cd /workspace/handpose_v1
+git pull --ff-only origin main
+
+nohup env \
+  EGOVERSE_CACHE_DIR=/workspace/egoverse_cache \
+  OUT_DIR=/workspace/runs/dinov3_base_mlp_001 \
+  CACHE_BEFORE_TRAIN=0 \
+  EPOCHS=100 \
+  BATCH_SIZE=64 \
+  NUM_WORKERS=8 \
+  LR=1e-4 \
+  HEAD_TYPE=mlp \
+  HEAD_HIDDEN_DIMS=2048,1024 \
+  HEAD_DROPOUT=0.1 \
+  bash deploy/train_dinov3_base.sh \
+  > /workspace/runs/dinov3_base_mlp_001.log 2>&1 &
+```
+
+DINOv3-S with the larger MLP head:
+
+```bash
+cd /workspace/handpose_v1
+git pull --ff-only origin main
+
+nohup env \
+  EGOVERSE_CACHE_DIR=/workspace/egoverse_cache \
+  OUT_DIR=/workspace/runs/dinov3_small_mlp_001 \
+  CACHE_BEFORE_TRAIN=0 \
+  EPOCHS=100 \
+  BATCH_SIZE=64 \
+  NUM_WORKERS=8 \
+  LR=1e-4 \
+  HEAD_TYPE=mlp \
+  HEAD_HIDDEN_DIMS=1024,512 \
+  HEAD_DROPOUT=0.1 \
+  bash deploy/train_dinov3_small.sh \
+  > /workspace/runs/dinov3_small_mlp_001.log 2>&1 &
+```
+
+Check progress:
+
+```bash
+tail -n 5 /workspace/runs/<run_name>/metrics.jsonl
+tail -f /workspace/runs/<run_name>.log
+```
+
 Useful overrides:
 
 ```bash

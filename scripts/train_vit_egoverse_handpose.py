@@ -49,6 +49,9 @@ class ViTHandPose(nn.Module):
         *,
         backbone_source: str = "auto",
         freeze_backbone: bool = False,
+        head_type: str = "linear",
+        head_hidden_dims: tuple[int, ...] = (1024, 512),
+        head_dropout: float = 0.0,
     ):
         super().__init__()
         self.backbone_source = self._resolve_backbone_source(model_name, backbone_source)
@@ -56,7 +59,12 @@ class ViTHandPose(nn.Module):
         if freeze_backbone:
             for param in self.backbone.parameters():
                 param.requires_grad = False
-        self.head = nn.Linear(self._backbone_num_features(self.backbone), 2 * 21 * 3)
+        self.head = self._create_head(
+            self._backbone_num_features(self.backbone),
+            head_type=head_type,
+            hidden_dims=head_hidden_dims,
+            dropout=head_dropout,
+        )
 
     @staticmethod
     def _resolve_backbone_source(model_name: str, backbone_source: str) -> str:
@@ -84,6 +92,30 @@ class ViTHandPose(nn.Module):
                 return int(value)
         raise AttributeError("Backbone does not expose num_features or embed_dim")
 
+    @staticmethod
+    def _create_head(
+        input_dim: int,
+        *,
+        head_type: str,
+        hidden_dims: tuple[int, ...],
+        dropout: float,
+    ) -> nn.Module:
+        output_dim = 2 * 21 * 3
+        if head_type == "linear":
+            return nn.Linear(input_dim, output_dim)
+        if head_type == "mlp":
+            layers: list[nn.Module] = []
+            prev_dim = input_dim
+            for hidden_dim in hidden_dims:
+                layers.append(nn.Linear(prev_dim, hidden_dim))
+                layers.append(nn.GELU())
+                if dropout > 0:
+                    layers.append(nn.Dropout(dropout))
+                prev_dim = hidden_dim
+            layers.append(nn.Linear(prev_dim, output_dim))
+            return nn.Sequential(*layers)
+        raise ValueError(f"Unsupported head type: {head_type}")
+
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         return self.head(self.backbone(image)).view(-1, 2, 21, 3)
 
@@ -99,6 +131,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backbone-source", choices=("auto", "timm", "dinov3"), default="auto")
     parser.add_argument("--pretrained", action="store_true")
     parser.add_argument("--freeze-backbone", action="store_true")
+    parser.add_argument("--head-type", choices=("linear", "mlp"), default="linear")
+    parser.add_argument("--head-hidden-dims", default="1024,512", help="Comma-separated MLP hidden dims.")
+    parser.add_argument("--head-dropout", type=float, default=0.0)
     parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -122,6 +157,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--distributed", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Build data/model and exit without training.")
     return parser.parse_args()
+
+
+def parse_head_hidden_dims(value: str) -> tuple[int, ...]:
+    if not value.strip():
+        return ()
+    dims = tuple(int(part.strip()) for part in value.split(",") if part.strip())
+    if any(dim <= 0 for dim in dims):
+        raise ValueError(f"--head-hidden-dims must contain positive integers: {value}")
+    return dims
 
 
 def allocate_numbered_out_dir(args: argparse.Namespace) -> Path:
@@ -733,6 +777,8 @@ def evaluate(
 
 def main() -> None:
     args = parse_args()
+    head_hidden_dims = parse_head_hidden_dims(args.head_hidden_dims)
+    args.parsed_head_hidden_dims = list(head_hidden_dims)
     distributed, rank, _, local_rank = setup_distributed(args.distributed)
     out_dir = resolve_out_dir(args, distributed=distributed, rank=rank, allocate=not args.dry_run)
     args.resolved_out_dir = str(out_dir)
@@ -751,6 +797,9 @@ def main() -> None:
         pretrained=args.pretrained,
         backbone_source=args.backbone_source,
         freeze_backbone=args.freeze_backbone,
+        head_type=args.head_type,
+        head_hidden_dims=head_hidden_dims,
+        head_dropout=args.head_dropout,
     ).to(device)
     if distributed:
         model = DistributedDataParallel(model, device_ids=[local_rank] if torch.cuda.is_available() else None)
@@ -767,6 +816,9 @@ def main() -> None:
                         "backbone_source": args.backbone_source,
                         "pretrained": args.pretrained,
                         "freeze_backbone": args.freeze_backbone,
+                        "head_type": args.head_type,
+                        "head_hidden_dims": args.parsed_head_hidden_dims,
+                        "head_dropout": args.head_dropout,
                         "image_size": args.image_size,
                         "out_dir": str(out_dir),
                     },
