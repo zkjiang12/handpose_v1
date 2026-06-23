@@ -268,16 +268,14 @@ def prune_duplicate_visualizations(viz_dir: Path) -> None:
             path.unlink(missing_ok=True)
 
 
-def write_live_metrics_html(out_dir: Path) -> None:
-    run_title = html.escape(out_dir.name.replace("_", " ").title())
-    prune_duplicate_visualizations(out_dir / "viz")
-    viz_images = sorted((out_dir / "viz").glob("*.png"))
-    grouped_viz: dict[str, list[Path]] = {}
-    for path in viz_images:
+def build_grouped_gallery(out_dir: Path, image_dir: Path) -> str:
+    images = sorted(image_dir.glob("*.png"))
+    grouped: dict[str, list[Path]] = {}
+    for path in images:
         match = VIZ_SAMPLE_RE.search(path.stem)
         sample_id = match.group(1) if match else "unknown"
-        grouped_viz.setdefault(sample_id, []).append(path)
-    gallery_items = "\n".join(
+        grouped.setdefault(sample_id, []).append(path)
+    gallery = "\n".join(
         f"""    <section class="sample-row">
       <h3>Test sample {html.escape(sample_id)}</h3>
       <div class="sample-strip">
@@ -290,10 +288,17 @@ def write_live_metrics_html(out_dir: Path) -> None:
         for path in paths
     )}      </div>
     </section>"""
-        for sample_id, paths in sorted(grouped_viz.items())
+        for sample_id, paths in sorted(grouped.items())
     )
-    if not gallery_items:
-        gallery_items = "    <p>No overlay images written yet.</p>"
+    return gallery or "    <p>No images written yet.</p>"
+
+
+def write_live_metrics_html(out_dir: Path) -> None:
+    run_title = html.escape(out_dir.name.replace("_", " ").title())
+    prune_duplicate_visualizations(out_dir / "viz")
+    prune_duplicate_visualizations(out_dir / "viz3d")
+    overlay_items = build_grouped_gallery(out_dir, out_dir / "viz")
+    pose3d_items = build_grouped_gallery(out_dir, out_dir / "viz3d")
 
     page = f"""<!doctype html>
 <html>
@@ -327,7 +332,14 @@ def write_live_metrics_html(out_dir: Path) -> None:
     <h2>Overlay Images</h2>
     <p>Fixed examples from the test split; each row is the same sample across epochs and steps.</p>
     <div class="gallery">
-{gallery_items}
+{overlay_items}
+    </div>
+  </section>
+  <section>
+    <h2>3D Hand Poses</h2>
+    <p>Green/blue are ground truth hands; red/magenta are current model predictions.</p>
+    <div class="gallery">
+{pose3d_items}
     </div>
   </section>
 </body>
@@ -406,6 +418,74 @@ def update_metric_plot(history: list[dict], out_dir: Path) -> None:
     plt.close(fig)
 
 
+def set_equal_3d_axes(ax, points: np.ndarray) -> None:
+    finite_points = points[np.isfinite(points).all(axis=1)]
+    if finite_points.size == 0:
+        return
+    mins = finite_points.min(axis=0)
+    maxs = finite_points.max(axis=0)
+    center = (mins + maxs) / 2.0
+    radius = max(float((maxs - mins).max()) / 2.0, 0.05)
+    ax.set_xlim(center[0] - radius, center[0] + radius)
+    ax.set_ylim(center[1] - radius, center[1] + radius)
+    ax.set_zlim(center[2] - radius, center[2] + radius)
+
+
+def draw_hand_3d(ax, points: np.ndarray, mask: np.ndarray, color: str, label: str) -> None:
+    plotted_label = False
+    for i, j in HAND_EDGES:
+        if not (mask[i] and mask[j]):
+            continue
+        segment = points[[i, j]]
+        ax.plot(
+            segment[:, 0],
+            segment[:, 1],
+            segment[:, 2],
+            color=color,
+            linewidth=1.8,
+            label=label if not plotted_label else None,
+        )
+        plotted_label = True
+    valid_points = points[mask]
+    if valid_points.size:
+        ax.scatter(valid_points[:, 0], valid_points[:, 1], valid_points[:, 2], color=color, s=10)
+
+
+def save_3d_hand_pose_plot(
+    target: np.ndarray,
+    pred: np.ndarray,
+    mask: np.ndarray,
+    out_path: Path,
+    *,
+    title: str,
+) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig = plt.figure(figsize=(4, 4), dpi=120)
+    ax = fig.add_subplot(111, projection="3d")
+    draw_hand_3d(ax, target[0], mask[0], "#22c55e", "GT left")
+    draw_hand_3d(ax, target[1], mask[1], "#38bdf8", "GT right")
+    draw_hand_3d(ax, pred[0], mask[0], "#ef4444", "Pred left")
+    draw_hand_3d(ax, pred[1], mask[1], "#d946ef", "Pred right")
+    valid_target = target[mask]
+    valid_pred = pred[mask]
+    points = np.concatenate([valid_target, valid_pred], axis=0) if valid_target.size or valid_pred.size else target.reshape(-1, 3)
+    set_equal_3d_axes(ax, points)
+    ax.set_title(title, fontsize=9)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+    ax.view_init(elev=18, azim=-65)
+    ax.legend(fontsize=6, loc="upper left")
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+
+
 def make_viz_batch(dataset: EgoVerseHandPoseDataset, sample_count: int) -> dict:
     if sample_count <= 0:
         raise ValueError("--viz-samples must be positive when --viz-every is enabled")
@@ -472,6 +552,14 @@ def save_visualizations(
         step_label = f"_step_{step:04d}" if step is not None else ""
         out = out_dir / f"epoch_{epoch:03d}{step_label}_sample_{i:02d}_{episode}_{frame}.png"
         cv2.imwrite(str(out), cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
+        pose3d_out = out_dir.parent / "viz3d" / out.name
+        save_3d_hand_pose_plot(
+            target_cpu[i],
+            pred_cpu[i],
+            mask_cpu[i],
+            pose3d_out,
+            title=f"epoch {epoch} sample {i}",
+        )
     if was_training:
         model.train()
 
@@ -661,6 +749,7 @@ def main() -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
         (out_dir / "viz").mkdir(parents=True, exist_ok=True)
+        (out_dir / "viz3d").mkdir(parents=True, exist_ok=True)
         config_path = out_dir / "config.json"
         if not args.resume or not config_path.exists():
             config_path.write_text(json.dumps(vars(args), indent=2) + "\n")
