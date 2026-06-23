@@ -68,6 +68,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gt-radius", type=int, default=1)
     parser.add_argument("--pred-radius", type=int, default=2)
     parser.add_argument("--plot-every", type=int, default=1, help="Update loss chart every N epochs; 0 disables.")
+    parser.add_argument("--log-every-steps", type=int, default=0, help="Print/write train metrics every N batches; 0 disables.")
     parser.add_argument("--open-live-plot", action="store_true", help="Open a local auto-refreshing metrics HTML page.")
     parser.add_argument("--save-every", type=int, default=1, help="Save epoch checkpoint every N epochs; 0 disables.")
     parser.add_argument("--resume", default=None, help="Resume from a checkpoint such as /runs/name/last.pt.")
@@ -161,6 +162,18 @@ def read_metrics_history(metrics_path: Path) -> list[dict]:
     return history
 
 
+def read_recent_jsonl(path: Path, limit: int) -> list[dict]:
+    if not path.exists() or limit <= 0:
+        return []
+    rows = []
+    with path.open() as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    return rows[-limit:]
+
+
 def masked_smooth_l1(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     expanded = mask.unsqueeze(-1).expand_as(pred)
     if not torch.any(expanded):
@@ -226,6 +239,20 @@ def draw_hand(
 def write_live_metrics_html(out_dir: Path) -> None:
     run_title = html.escape(out_dir.name.replace("_", " ").title())
     viz_images = sorted((out_dir / "viz").glob("*.png"))
+    recent_steps = read_recent_jsonl(out_dir / "train_steps.jsonl", limit=24)
+    step_rows = "\n".join(
+        f"""      <tr>
+        <td>{row.get("epoch", "")}</td>
+        <td>{row.get("step", "")}/{row.get("total_steps", "")}</td>
+        <td>{row.get("loss", 0.0):.6f}</td>
+        <td>{row.get("mpjpe_mm", 0.0):.2f}</td>
+        <td>{row.get("running_loss", 0.0):.6f}</td>
+        <td>{row.get("running_mpjpe_mm", 0.0):.2f}</td>
+      </tr>"""
+        for row in reversed(recent_steps)
+    )
+    if not step_rows:
+        step_rows = """      <tr><td colspan="6">No step logs written yet.</td></tr>"""
     gallery_items = "\n".join(
         f"""    <figure>
       <img src="{html.escape(str(path.relative_to(out_dir)))}" alt="{html.escape(path.stem)}">
@@ -247,6 +274,9 @@ def write_live_metrics_html(out_dir: Path) -> None:
     h1, h2 {{ margin: 0 0 12px; }}
     section {{ margin-top: 28px; }}
     .chart {{ max-width: min(1100px, 100%); border: 1px solid #cbd5e1; background: white; }}
+    table {{ border-collapse: collapse; min-width: min(860px, 100%); background: white; }}
+    th, td {{ border: 1px solid #cbd5e1; padding: 7px 9px; text-align: right; font-variant-numeric: tabular-nums; }}
+    th:first-child, td:first-child {{ text-align: left; }}
     .gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); gap: 14px; max-width: 1300px; }}
     figure {{ margin: 0; padding: 8px; border: 1px solid #cbd5e1; background: white; }}
     figure img {{ width: 100%; display: block; image-rendering: auto; }}
@@ -256,6 +286,17 @@ def write_live_metrics_html(out_dir: Path) -> None:
 <body>
   <h1>{run_title}</h1>
   <p>Auto-refreshes every 3 seconds while training writes new epochs.</p>
+  <section>
+    <h2>Recent Train Steps</h2>
+    <table>
+      <thead>
+        <tr><th>Epoch</th><th>Step</th><th>Window Loss</th><th>Window MPJPE</th><th>Epoch Loss</th><th>Epoch MPJPE</th></tr>
+      </thead>
+      <tbody>
+{step_rows}
+      </tbody>
+    </table>
+  </section>
   <section>
     <h2>Loss / MPJPE</h2>
     <img class="chart" src="loss_curve.png" alt="Loss curve">
@@ -407,12 +448,21 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     *,
+    epoch: int,
     max_steps: int | None,
+    log_every_steps: int,
+    step_metrics_path: Path | None,
 ) -> dict[str, float]:
     model.train()
     total_loss = 0.0
     total_mpjpe = 0.0
+    window_loss = 0.0
+    window_mpjpe = 0.0
+    window_steps = 0
     steps = 0
+    total_steps = len(loader)
+    if max_steps is not None:
+        total_steps = min(total_steps, max_steps)
     for batch in loader:
         image = batch["image"].to(device, non_blocking=True)
         target = batch["keypoints"].to(device, non_blocking=True)
@@ -422,9 +472,32 @@ def train_one_epoch(
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
-        total_loss += float(loss.detach().cpu())
-        total_mpjpe += float(mpjpe_mm(pred.detach(), target, mask).cpu())
+        batch_loss = float(loss.detach().cpu())
+        batch_mpjpe = float(mpjpe_mm(pred.detach(), target, mask).cpu())
+        total_loss += batch_loss
+        total_mpjpe += batch_mpjpe
         steps += 1
+        window_loss += batch_loss
+        window_mpjpe += batch_mpjpe
+        window_steps += 1
+        should_log = log_every_steps > 0 and (steps % log_every_steps == 0 or steps == total_steps)
+        if should_log and step_metrics_path is not None:
+            row = {
+                "epoch": epoch,
+                "step": steps,
+                "total_steps": total_steps,
+                "loss": window_loss / max(1, window_steps),
+                "mpjpe_mm": window_mpjpe / max(1, window_steps),
+                "running_loss": total_loss / max(1, steps),
+                "running_mpjpe_mm": total_mpjpe / max(1, steps),
+            }
+            print(json.dumps({"train_step": row}), flush=True)
+            with step_metrics_path.open("a") as f:
+                f.write(json.dumps(row) + "\n")
+            write_live_metrics_html(step_metrics_path.parent)
+            window_loss = 0.0
+            window_mpjpe = 0.0
+            window_steps = 0
         if max_steps is not None and steps >= max_steps:
             break
     return {"loss": total_loss / max(1, steps), "mpjpe_mm": total_mpjpe / max(1, steps), "steps": steps}
@@ -518,8 +591,10 @@ def main() -> None:
         write_live_metrics_html(out_dir)
         maybe_open_live_plot(out_dir, args.open_live_plot)
         metrics_path = out_dir / "metrics.jsonl"
+        step_metrics_path = out_dir / "train_steps.jsonl"
     else:
         metrics_path = None
+        step_metrics_path = None
 
     viz_batch = None
     if args.viz_every > 0 and is_rank0(rank):
@@ -530,7 +605,14 @@ def main() -> None:
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
         train_metrics = train_one_epoch(
-            model, train_loader, optimizer, device, max_steps=args.max_steps
+            model,
+            train_loader,
+            optimizer,
+            device,
+            epoch=epoch + 1,
+            max_steps=args.max_steps,
+            log_every_steps=args.log_every_steps,
+            step_metrics_path=step_metrics_path,
         )
         test_metrics = evaluate(model, test_loader, device, max_steps=args.max_eval_steps)
         if is_rank0(rank):
