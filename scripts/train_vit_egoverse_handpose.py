@@ -500,7 +500,7 @@ def main() -> None:
         checkpoint_path = Path(args.resume).expanduser().resolve()
         if not checkpoint_path.exists():
             raise FileNotFoundError(f"Resume checkpoint not found: {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, map_location=device)
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
         load_model_state(model, checkpoint["model"])
         if "optimizer" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer"])

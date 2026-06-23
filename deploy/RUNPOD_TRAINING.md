@@ -12,7 +12,7 @@ From the repo root on your local machine:
 export GHCR_IMAGE="ghcr.io/<owner>/<repo>/handpose-train"
 export IMAGE_TAG="$(git rev-parse --short HEAD)"
 
-docker build -f Dockerfile.train -t "$GHCR_IMAGE:$IMAGE_TAG" .
+docker build --platform linux/amd64 -f Dockerfile.train -t "$GHCR_IMAGE:$IMAGE_TAG" .
 docker push "$GHCR_IMAGE:$IMAGE_TAG"
 ```
 
