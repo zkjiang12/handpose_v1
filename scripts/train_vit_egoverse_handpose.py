@@ -166,8 +166,8 @@ def read_metrics_history(metrics_path: Path) -> list[dict]:
     return history
 
 
-def read_recent_jsonl(path: Path, limit: int) -> list[dict]:
-    if not path.exists() or limit <= 0:
+def read_jsonl(path: Path, limit: int | None = None) -> list[dict]:
+    if not path.exists():
         return []
     rows = []
     with path.open() as f:
@@ -175,7 +175,9 @@ def read_recent_jsonl(path: Path, limit: int) -> list[dict]:
             line = line.strip()
             if line:
                 rows.append(json.loads(line))
-    return rows[-limit:]
+    if limit is not None:
+        return rows[-limit:]
+    return rows
 
 
 def masked_smooth_l1(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
@@ -243,20 +245,6 @@ def draw_hand(
 def write_live_metrics_html(out_dir: Path) -> None:
     run_title = html.escape(out_dir.name.replace("_", " ").title())
     viz_images = sorted((out_dir / "viz").glob("*.png"))
-    recent_steps = read_recent_jsonl(out_dir / "train_steps.jsonl", limit=24)
-    step_rows = "\n".join(
-        f"""      <tr>
-        <td>{row.get("epoch", "")}</td>
-        <td>{row.get("step", "")}/{row.get("total_steps", "")}</td>
-        <td>{row.get("loss", 0.0):.6f}</td>
-        <td>{row.get("mpjpe_mm", 0.0):.2f}</td>
-        <td>{row.get("running_loss", 0.0):.6f}</td>
-        <td>{row.get("running_mpjpe_mm", 0.0):.2f}</td>
-      </tr>"""
-        for row in reversed(recent_steps)
-    )
-    if not step_rows:
-        step_rows = """      <tr><td colspan="6">No step logs written yet.</td></tr>"""
     gallery_items = "\n".join(
         f"""    <figure>
       <img src="{html.escape(str(path.relative_to(out_dir)))}" alt="{html.escape(path.stem)}">
@@ -278,9 +266,6 @@ def write_live_metrics_html(out_dir: Path) -> None:
     h1, h2 {{ margin: 0 0 12px; }}
     section {{ margin-top: 28px; }}
     .chart {{ max-width: min(1100px, 100%); border: 1px solid #cbd5e1; background: white; }}
-    table {{ border-collapse: collapse; min-width: min(860px, 100%); background: white; }}
-    th, td {{ border: 1px solid #cbd5e1; padding: 7px 9px; text-align: right; font-variant-numeric: tabular-nums; }}
-    th:first-child, td:first-child {{ text-align: left; }}
     .gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); gap: 14px; max-width: 1300px; }}
     figure {{ margin: 0; padding: 8px; border: 1px solid #cbd5e1; background: white; }}
     figure img {{ width: 100%; display: block; image-rendering: auto; }}
@@ -290,17 +275,6 @@ def write_live_metrics_html(out_dir: Path) -> None:
 <body>
   <h1>{run_title}</h1>
   <p>Auto-refreshes every 3 seconds; the file is rewritten on train-step logs, visualizations, and epoch summaries.</p>
-  <section>
-    <h2>Recent Train Steps</h2>
-    <table>
-      <thead>
-        <tr><th>Epoch</th><th>Step</th><th>Window Loss</th><th>Window MPJPE</th><th>Epoch Loss</th><th>Epoch MPJPE</th></tr>
-      </thead>
-      <tbody>
-{step_rows}
-      </tbody>
-    </table>
-  </section>
   <section>
     <h2>Loss / MPJPE</h2>
     <img class="chart" src="loss_curve.png" alt="Loss curve">
@@ -334,21 +308,39 @@ def update_metric_plot(history: list[dict], out_dir: Path) -> None:
     import matplotlib.pyplot as plt
 
     epochs = [row["epoch"] for row in history]
-    train_loss = [row["train"]["loss"] for row in history]
     test_loss = [row["test"]["loss"] for row in history]
-    train_mpjpe = [row["train"]["mpjpe_mm"] for row in history]
     test_mpjpe = [row["test"]["mpjpe_mm"] for row in history]
+    train_steps = read_jsonl(out_dir / "train_steps.jsonl")
+    train_x = []
+    train_loss = []
+    train_mpjpe = []
+    for row in train_steps:
+        total_steps = max(1, int(row.get("total_steps", 1)))
+        epoch = int(row.get("epoch", 1))
+        step = int(row.get("step", 0))
+        train_x.append(epoch - 1 + step / total_steps)
+        train_loss.append(float(row.get("running_loss", row.get("loss", 0.0))))
+        train_mpjpe.append(float(row.get("running_mpjpe_mm", row.get("mpjpe_mm", 0.0))))
+
+    epoch_train_loss = [row["train"]["loss"] for row in history]
+    epoch_train_mpjpe = [row["train"]["mpjpe_mm"] for row in history]
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4), dpi=140)
-    axes[0].plot(epochs, train_loss, marker="o", label="train")
-    axes[0].plot(epochs, test_loss, marker="o", label="test")
+    if train_x:
+        axes[0].plot(train_x, train_loss, linewidth=1.8, label="train running")
+    elif epochs:
+        axes[0].plot(epochs, epoch_train_loss, marker="o", label="train")
+    axes[0].plot(epochs, test_loss, marker="o", linestyle="none", label="test epoch")
     axes[0].set_title("SmoothL1 Loss")
     axes[0].set_xlabel("epoch")
     axes[0].grid(True, alpha=0.3)
     axes[0].legend()
 
-    axes[1].plot(epochs, train_mpjpe, marker="o", label="train")
-    axes[1].plot(epochs, test_mpjpe, marker="o", label="test")
+    if train_x:
+        axes[1].plot(train_x, train_mpjpe, linewidth=1.8, label="train running")
+    elif epochs:
+        axes[1].plot(epochs, epoch_train_mpjpe, marker="o", label="train")
+    axes[1].plot(epochs, test_mpjpe, marker="o", linestyle="none", label="test epoch")
     axes[1].set_title("MPJPE (mm)")
     axes[1].set_xlabel("epoch")
     axes[1].grid(True, alpha=0.3)
@@ -469,6 +461,7 @@ def train_one_epoch(
     log_every_steps: int,
     step_metrics_path: Path | None,
     progress: bool,
+    metrics_history: list[dict] | None = None,
     viz_steps: set[int] | None = None,
     viz_callback: Callable[[int], None] | None = None,
 ) -> dict[str, float]:
@@ -518,6 +511,8 @@ def train_one_epoch(
             print(json.dumps({"train_step": row}), flush=True)
             with step_metrics_path.open("a") as f:
                 f.write(json.dumps(row) + "\n")
+            if metrics_history is not None:
+                update_metric_plot(metrics_history, step_metrics_path.parent)
             write_live_metrics_html(step_metrics_path.parent)
             window_loss = 0.0
             window_mpjpe = 0.0
@@ -614,6 +609,7 @@ def main() -> None:
         config_path = out_dir / "config.json"
         if not args.resume or not config_path.exists():
             config_path.write_text(json.dumps(vars(args), indent=2) + "\n")
+        update_metric_plot(read_metrics_history(out_dir / "metrics.jsonl"), out_dir)
         write_live_metrics_html(out_dir)
         maybe_open_live_plot(out_dir, args.open_live_plot)
         metrics_path = out_dir / "metrics.jsonl"
@@ -668,6 +664,7 @@ def main() -> None:
             log_every_steps=args.log_every_steps,
             step_metrics_path=step_metrics_path,
             progress=args.progress and is_rank0(rank),
+            metrics_history=metrics_history,
             viz_steps=viz_steps,
             viz_callback=viz_callback,
         )
