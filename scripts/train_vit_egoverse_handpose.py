@@ -345,26 +345,36 @@ def update_metric_plot(history: list[dict], out_dir: Path) -> None:
     epoch_train_loss = [row["train"]["loss"] for row in history]
     epoch_train_mpjpe = [row["train"]["mpjpe_mm"] for row in history]
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4), dpi=140)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), dpi=140)
     if train_x:
-        axes[0].plot(train_x, train_loss, linewidth=1.8, label="train running")
+        axes[0, 0].plot(train_x, train_loss, linewidth=1.8, label="train running")
     elif epochs:
-        axes[0].plot(epochs, epoch_train_loss, marker="o", label="train")
-    axes[0].plot(epochs, test_loss, marker="o", linestyle="none", label="test epoch")
-    axes[0].set_title("SmoothL1 Loss")
-    axes[0].set_xlabel("epoch")
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend()
+        axes[0, 0].plot(epochs, epoch_train_loss, marker="o", label="train")
+    axes[0, 0].set_title("Train SmoothL1 Loss")
+    axes[0, 0].set_xlabel("epoch")
+    axes[0, 0].grid(True, alpha=0.3)
+    axes[0, 0].legend()
 
     if train_x:
-        axes[1].plot(train_x, train_mpjpe, linewidth=1.8, label="train running")
+        axes[0, 1].plot(train_x, train_mpjpe, linewidth=1.8, label="train running")
     elif epochs:
-        axes[1].plot(epochs, epoch_train_mpjpe, marker="o", label="train")
-    axes[1].plot(epochs, test_mpjpe, marker="o", linestyle="none", label="test epoch")
-    axes[1].set_title("MPJPE (mm)")
-    axes[1].set_xlabel("epoch")
-    axes[1].grid(True, alpha=0.3)
-    axes[1].legend()
+        axes[0, 1].plot(epochs, epoch_train_mpjpe, marker="o", label="train")
+    axes[0, 1].set_title("Train MPJPE (mm)")
+    axes[0, 1].set_xlabel("epoch")
+    axes[0, 1].grid(True, alpha=0.3)
+    axes[0, 1].legend()
+
+    axes[1, 0].plot(epochs, test_loss, marker="o", linewidth=1.8, label="test epoch")
+    axes[1, 0].set_title("Test SmoothL1 Loss")
+    axes[1, 0].set_xlabel("epoch")
+    axes[1, 0].grid(True, alpha=0.3)
+    axes[1, 0].legend()
+
+    axes[1, 1].plot(epochs, test_mpjpe, marker="o", linewidth=1.8, label="test epoch")
+    axes[1, 1].set_title("Test MPJPE (mm)")
+    axes[1, 1].set_xlabel("epoch")
+    axes[1, 1].grid(True, alpha=0.3)
+    axes[1, 1].legend()
 
     fig.tight_layout()
     fig.savefig(out_dir / "loss_curve.png")
