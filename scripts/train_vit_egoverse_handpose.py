@@ -42,10 +42,47 @@ HAND_EDGES = (
 
 
 class ViTHandPose(nn.Module):
-    def __init__(self, model_name: str, pretrained: bool):
+    def __init__(
+        self,
+        model_name: str,
+        pretrained: bool,
+        *,
+        backbone_source: str = "auto",
+        freeze_backbone: bool = False,
+    ):
         super().__init__()
-        self.backbone = timm.create_model(model_name, pretrained=pretrained, num_classes=0)
-        self.head = nn.Linear(self.backbone.num_features, 2 * 21 * 3)
+        self.backbone_source = self._resolve_backbone_source(model_name, backbone_source)
+        self.backbone = self._create_backbone(model_name, pretrained, self.backbone_source)
+        if freeze_backbone:
+            for param in self.backbone.parameters():
+                param.requires_grad = False
+        self.head = nn.Linear(self._backbone_num_features(self.backbone), 2 * 21 * 3)
+
+    @staticmethod
+    def _resolve_backbone_source(model_name: str, backbone_source: str) -> str:
+        if backbone_source != "auto":
+            return backbone_source
+        return "dinov3" if model_name.startswith("dinov3_") else "timm"
+
+    @staticmethod
+    def _create_backbone(model_name: str, pretrained: bool, backbone_source: str) -> nn.Module:
+        if backbone_source == "timm":
+            return timm.create_model(model_name, pretrained=pretrained, num_classes=0)
+        if backbone_source == "dinov3":
+            return torch.hub.load(
+                repo_or_dir="facebookresearch/dinov3",
+                model=model_name,
+                pretrained=pretrained,
+            )
+        raise ValueError(f"Unsupported backbone source: {backbone_source}")
+
+    @staticmethod
+    def _backbone_num_features(backbone: nn.Module) -> int:
+        for attr in ("num_features", "embed_dim"):
+            value = getattr(backbone, attr, None)
+            if value is not None:
+                return int(value)
+        raise AttributeError("Backbone does not expose num_features or embed_dim")
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         return self.head(self.backbone(image)).view(-1, 2, 21, 3)
@@ -59,7 +96,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--runs-root", default="outputs/vit_runs", help="Parent directory for auto-numbered runs.")
     parser.add_argument("--run-prefix", default="run", help="Prefix for auto-numbered run folders.")
     parser.add_argument("--model-name", default="vit_tiny_patch16_224")
+    parser.add_argument("--backbone-source", choices=("auto", "timm", "dinov3"), default="auto")
     parser.add_argument("--pretrained", action="store_true")
+    parser.add_argument("--freeze-backbone", action="store_true")
     parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -707,7 +746,12 @@ def main() -> None:
     test_dataset, test_loader, _ = make_loader(
         args.test_csv, args, train=False, distributed=distributed, max_rows=max_rows
     )
-    model = ViTHandPose(args.model_name, pretrained=args.pretrained).to(device)
+    model = ViTHandPose(
+        args.model_name,
+        pretrained=args.pretrained,
+        backbone_source=args.backbone_source,
+        freeze_backbone=args.freeze_backbone,
+    ).to(device)
     if distributed:
         model = DistributedDataParallel(model, device_ids=[local_rank] if torch.cuda.is_available() else None)
 
@@ -720,7 +764,9 @@ def main() -> None:
                         "train_rows": len(train_dataset),
                         "test_rows": len(test_dataset),
                         "model_name": args.model_name,
+                        "backbone_source": args.backbone_source,
                         "pretrained": args.pretrained,
+                        "freeze_backbone": args.freeze_backbone,
                         "image_size": args.image_size,
                         "out_dir": str(out_dir),
                     },

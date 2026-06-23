@@ -132,6 +132,30 @@ docker run --gpus all --rm \
   bash deploy/train_vit_base.sh
 ```
 
+## DINOv3-S Training Run
+
+This runs the 21M-parameter DINOv3-S backbone through `timm` with the existing
+hand-pose regression head:
+
+```bash
+docker run --gpus all --rm \
+  -v /workspace/egoverse_cache:/data/egoverse_cache \
+  -v /workspace/runs:/runs \
+  -e AWS_ACCESS_KEY_ID \
+  -e AWS_SECRET_ACCESS_KEY \
+  -e AWS_DEFAULT_REGION \
+  -e EGOVERSE_CACHE_DIR=/data/egoverse_cache \
+  -e OUT_DIR=/runs/dinov3_small_001 \
+  "$GHCR_IMAGE:$IMAGE_TAG" \
+  bash deploy/train_dinov3_small.sh
+```
+
+For a cheaper first pass that only trains the hand-pose head:
+
+```bash
+-e FREEZE_BACKBONE=1
+```
+
 Useful overrides:
 
 ```bash

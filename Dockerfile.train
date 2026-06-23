@@ -27,7 +27,7 @@ RUN pip install -r /app/deploy/requirements-train.txt
 
 COPY . /app
 
-RUN chmod +x /app/deploy/train_smoke.sh /app/deploy/train_vit_base.sh && \
+RUN chmod +x /app/deploy/train_smoke.sh /app/deploy/train_vit_base.sh /app/deploy/train_dinov3_small.sh && \
     mkdir -p "$EGOVERSE_CACHE_DIR" "$RUNS_ROOT"
 
 CMD ["bash", "deploy/train_smoke.sh"]

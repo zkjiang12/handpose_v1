@@ -228,6 +228,34 @@ torchrun --nproc_per_node 4 \
   --distributed
 ```
 
+To train with the 21M-parameter DINOv3-S backbone:
+
+```bash
+python scripts/train_vit_egoverse_handpose.py \
+  --train-csv outputs/handpose_dataset/train.csv \
+  --test-csv outputs/handpose_dataset/test.csv \
+  --out-dir outputs/vit_runs/dinov3_small_001 \
+  --model-name vit_small_patch16_dinov3 \
+  --backbone-source timm \
+  --pretrained \
+  --epochs 20 \
+  --batch-size 32 \
+  --lr 1e-4 \
+  --num-workers 8 \
+  --viz-every 1 \
+  --viz-per-epoch 1 \
+  --viz-samples 4
+```
+
+Or use the Docker-oriented wrapper:
+
+```bash
+bash deploy/train_dinov3_small.sh
+```
+
+The command uses `timm`'s DINOv3-S implementation. Set `FREEZE_BACKBONE=1` for
+a cheaper linear-probe style run that only trains the hand-pose head.
+
 For cloud GPU training with Docker on RunPod, see
 [`deploy/RUNPOD_TRAINING.md`](deploy/RUNPOD_TRAINING.md).
 
