@@ -59,6 +59,7 @@ python scripts/train_vit_egoverse_handpose.py \
   --weight-decay "${WEIGHT_DECAY:-0.0001}" \
   "${HEAD_ARGS[@]}" \
   --save-every "${SAVE_EVERY:-10}" \
+  --keep-checkpoints "${KEEP_CHECKPOINTS:-1}" \
   --plot-every "${PLOT_EVERY:-1}" \
   --log-every-steps "${LOG_EVERY_STEPS:-25}" \
   --viz-every "${VIZ_EVERY:-1}" \

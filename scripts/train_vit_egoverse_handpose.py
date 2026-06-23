@@ -153,6 +153,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True, help="Show tqdm progress bars.")
     parser.add_argument("--open-live-plot", action="store_true", help="Open a local auto-refreshing metrics HTML page.")
     parser.add_argument("--save-every", type=int, default=10, help="Save epoch checkpoint every N epochs; 0 disables.")
+    parser.add_argument(
+        "--keep-checkpoints",
+        type=int,
+        default=1,
+        help="Number of periodic epoch checkpoints to retain; negative keeps all.",
+    )
     parser.add_argument("--resume", default=None, help="Resume from a checkpoint such as /runs/name/last.pt.")
     parser.add_argument("--distributed", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="Build data/model and exit without training.")
@@ -166,6 +172,14 @@ def parse_head_hidden_dims(value: str) -> tuple[int, ...]:
     if any(dim <= 0 for dim in dims):
         raise ValueError(f"--head-hidden-dims must contain positive integers: {value}")
     return dims
+
+
+def prune_epoch_checkpoints(checkpoint_dir: Path, keep: int) -> None:
+    if keep < 0:
+        return
+    checkpoints = sorted(checkpoint_dir.glob("epoch_*.pt"), key=lambda path: path.stat().st_mtime, reverse=True)
+    for checkpoint in checkpoints[keep:]:
+        checkpoint.unlink()
 
 
 def allocate_numbered_out_dir(args: argparse.Namespace) -> Path:
@@ -924,7 +938,9 @@ def main() -> None:
             }
             torch.save(payload, out_dir / "last.pt")
             if args.save_every > 0 and (epoch + 1) % args.save_every == 0:
-                torch.save(payload, out_dir / "checkpoints" / f"epoch_{epoch + 1:03d}.pt")
+                checkpoint_dir = out_dir / "checkpoints"
+                torch.save(payload, checkpoint_dir / f"epoch_{epoch + 1:03d}.pt")
+                prune_epoch_checkpoints(checkpoint_dir, args.keep_checkpoints)
             if metrics_path is not None:
                 with metrics_path.open("a") as f:
                     f.write(json.dumps(metrics) + "\n")
