@@ -46,5 +46,6 @@ python scripts/train_vit_egoverse_handpose.py \
   --plot-every "${PLOT_EVERY:-1}" \
   --log-every-steps "${LOG_EVERY_STEPS:-25}" \
   --viz-every "${VIZ_EVERY:-1}" \
+  --viz-per-epoch "${VIZ_PER_EPOCH:-3}" \
   --viz-samples "${VIZ_SAMPLES:-4}" \
   "${RESUME_ARG[@]}"

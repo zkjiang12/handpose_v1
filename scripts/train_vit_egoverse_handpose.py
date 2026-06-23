@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import cv2
@@ -19,6 +20,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, DistributedSampler, default_collate
+from tqdm.auto import tqdm
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -64,11 +66,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-eval-steps", type=int, default=None)
     parser.add_argument("--overfit-batches", type=int, default=None)
     parser.add_argument("--viz-every", type=int, default=0, help="Save prediction overlays every N epochs; 0 disables.")
+    parser.add_argument("--viz-per-epoch", type=int, default=0, help="Save prediction overlays N times during each viz epoch; 0 saves at epoch end only.")
     parser.add_argument("--viz-samples", type=int, default=4)
     parser.add_argument("--gt-radius", type=int, default=1)
     parser.add_argument("--pred-radius", type=int, default=2)
     parser.add_argument("--plot-every", type=int, default=1, help="Update loss chart every N epochs; 0 disables.")
     parser.add_argument("--log-every-steps", type=int, default=0, help="Print/write train metrics every N batches; 0 disables.")
+    parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True, help="Show tqdm progress bars.")
     parser.add_argument("--open-live-plot", action="store_true", help="Open a local auto-refreshing metrics HTML page.")
     parser.add_argument("--save-every", type=int, default=1, help="Save epoch checkpoint every N epochs; 0 disables.")
     parser.add_argument("--resume", default=None, help="Resume from a checkpoint such as /runs/name/last.pt.")
@@ -285,7 +289,7 @@ def write_live_metrics_html(out_dir: Path) -> None:
 </head>
 <body>
   <h1>{run_title}</h1>
-  <p>Auto-refreshes every 3 seconds while training writes new epochs.</p>
+  <p>Auto-refreshes every 3 seconds; the file is rewritten on train-step logs, visualizations, and epoch summaries.</p>
   <section>
     <h2>Recent Train Steps</h2>
     <table>
@@ -388,11 +392,13 @@ def save_visualizations(
     out_dir: Path,
     *,
     epoch: int,
+    step: int | None = None,
     max_samples: int,
     gt_radius: int,
     pred_radius: int,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
+    was_training = model.training
     model.eval()
     image = batch["image"].to(device)
     target = batch["keypoints"].to(device)
@@ -416,8 +422,11 @@ def save_visualizations(
         draw_hand(vis, pred_cpu[i, 1], mask_cpu[i, 1], (255, 80, 220), pred_radius, 1)
         episode = batch["episode_hash"][i]
         frame = int(batch["frame_idx"][i])
-        out = out_dir / f"epoch_{epoch:03d}_sample_{i:02d}_{episode}_{frame}.png"
+        step_label = f"_step_{step:04d}" if step is not None else ""
+        out = out_dir / f"epoch_{epoch:03d}{step_label}_sample_{i:02d}_{episode}_{frame}.png"
         cv2.imwrite(str(out), cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
+    if was_training:
+        model.train()
 
 
 def make_loader(
@@ -442,6 +451,13 @@ def make_loader(
     return dataset, loader, sampler
 
 
+def evenly_spaced_steps(total_steps: int, count: int) -> set[int]:
+    if total_steps <= 0 or count <= 0:
+        return set()
+    count = min(count, total_steps)
+    return {max(1, int(round(step))) for step in np.linspace(0, total_steps, count + 1)[1:]}
+
+
 def train_one_epoch(
     model: nn.Module,
     loader: DataLoader,
@@ -452,6 +468,9 @@ def train_one_epoch(
     max_steps: int | None,
     log_every_steps: int,
     step_metrics_path: Path | None,
+    progress: bool,
+    viz_steps: set[int] | None = None,
+    viz_callback: Callable[[int], None] | None = None,
 ) -> dict[str, float]:
     model.train()
     total_loss = 0.0
@@ -463,7 +482,10 @@ def train_one_epoch(
     total_steps = len(loader)
     if max_steps is not None:
         total_steps = min(total_steps, max_steps)
-    for batch in loader:
+    iterator = loader
+    if progress:
+        iterator = tqdm(loader, total=total_steps, desc=f"epoch {epoch} train", dynamic_ncols=True)
+    for batch in iterator:
         image = batch["image"].to(device, non_blocking=True)
         target = batch["keypoints"].to(device, non_blocking=True)
         mask = batch["valid_mask"].to(device, non_blocking=True)
@@ -480,6 +502,8 @@ def train_one_epoch(
         window_loss += batch_loss
         window_mpjpe += batch_mpjpe
         window_steps += 1
+        if progress:
+            iterator.set_postfix(loss=f"{total_loss / max(1, steps):.4f}", mpjpe=f"{total_mpjpe / max(1, steps):.1f}")
         should_log = log_every_steps > 0 and (steps % log_every_steps == 0 or steps == total_steps)
         if should_log and step_metrics_path is not None:
             row = {
@@ -498,6 +522,8 @@ def train_one_epoch(
             window_loss = 0.0
             window_mpjpe = 0.0
             window_steps = 0
+        if viz_steps is not None and viz_callback is not None and steps in viz_steps:
+            viz_callback(steps)
         if max_steps is not None and steps >= max_steps:
             break
     return {"loss": total_loss / max(1, steps), "mpjpe_mm": total_mpjpe / max(1, steps), "steps": steps}
@@ -604,6 +630,34 @@ def main() -> None:
     for epoch in range(start_epoch, args.epochs):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
+        should_viz_epoch = (
+            viz_batch is not None
+            and args.viz_every > 0
+            and (epoch + 1) % args.viz_every == 0
+            and is_rank0(rank)
+        )
+        viz_steps = None
+        viz_callback = None
+        if should_viz_epoch and args.viz_per_epoch > 0:
+            total_train_steps = len(train_loader)
+            if args.max_steps is not None:
+                total_train_steps = min(total_train_steps, args.max_steps)
+            viz_steps = evenly_spaced_steps(total_train_steps, args.viz_per_epoch)
+
+            def viz_callback(step: int, *, current_epoch: int = epoch + 1) -> None:
+                save_visualizations(
+                    model.module if isinstance(model, DistributedDataParallel) else model,
+                    viz_batch,
+                    device,
+                    out_dir / "viz",
+                    epoch=current_epoch,
+                    step=step,
+                    max_samples=args.viz_samples,
+                    gt_radius=args.gt_radius,
+                    pred_radius=args.pred_radius,
+                )
+                write_live_metrics_html(out_dir)
+
         train_metrics = train_one_epoch(
             model,
             train_loader,
@@ -613,6 +667,9 @@ def main() -> None:
             max_steps=args.max_steps,
             log_every_steps=args.log_every_steps,
             step_metrics_path=step_metrics_path,
+            progress=args.progress and is_rank0(rank),
+            viz_steps=viz_steps,
+            viz_callback=viz_callback,
         )
         test_metrics = evaluate(model, test_loader, device, max_steps=args.max_eval_steps)
         if is_rank0(rank):
@@ -634,7 +691,7 @@ def main() -> None:
                     f.write(json.dumps(metrics) + "\n")
             if args.plot_every > 0 and (epoch + 1) % args.plot_every == 0:
                 update_metric_plot(metrics_history, out_dir)
-            if viz_batch is not None and args.viz_every > 0 and (epoch + 1) % args.viz_every == 0:
+            if should_viz_epoch and args.viz_per_epoch <= 0:
                 save_visualizations(
                     model.module if isinstance(model, DistributedDataParallel) else model,
                     viz_batch,
