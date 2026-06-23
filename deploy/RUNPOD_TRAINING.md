@@ -246,8 +246,12 @@ The DINO wrappers render ranked test examples at each epoch by default:
 
 `RANKED_VIZ_PERCENTILE=10` selects the lowest/highest 10% of evaluated test
 frames by MPJPE, and `RANKED_VIZ_MAX_SAMPLES=10` caps each bucket to 10 images
-per epoch. Set `RANKED_VIZ_EVERY=0` to disable it or
-`RANKED_VIZ_MAX_SAMPLES=0` to render the full percentile bucket.
+per epoch. Ranked selection prefers diversity: it takes one frame per episode
+before taking a second frame from the same episode, caps each bucket at
+`RANKED_VIZ_MAX_PER_EPISODE=2`, and requires
+`RANKED_VIZ_MIN_FRAME_GAP=60` between repeated frames from one episode. Set
+`RANKED_VIZ_EVERY=0` to disable it or `RANKED_VIZ_MAX_SAMPLES=0` to render the
+full percentile bucket.
 
 Useful overrides:
 
@@ -261,6 +265,8 @@ Useful overrides:
 -e RANKED_VIZ_EVERY=1
 -e RANKED_VIZ_PERCENTILE=10
 -e RANKED_VIZ_MAX_SAMPLES=10
+-e RANKED_VIZ_MAX_PER_EPISODE=2
+-e RANKED_VIZ_MIN_FRAME_GAP=60
 ```
 
 ## Multi-GPU

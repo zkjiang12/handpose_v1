@@ -179,7 +179,9 @@ Start a real local baseline run when ready:
   --viz-samples 4 \
   --ranked-viz-every 1 \
   --ranked-viz-percentile 10 \
-  --ranked-viz-max-samples 10
+  --ranked-viz-max-samples 10 \
+  --ranked-viz-max-per-episode 2 \
+  --ranked-viz-min-frame-gap 60
 ```
 
 If `--out-dir` is omitted, the script creates the next numbered run folder:
@@ -218,6 +220,11 @@ outputs/vit_runs/<run>/ranked_viz3d/*/*.png    Best/worst 3D plots by MPJPE
 outputs/vit_runs/<run>/ranked_viz/ranked_samples.jsonl
                                                 Ranked sample index with MPJPE
 ```
+
+Ranked visualizations prefer diverse examples: the selector takes one frame per
+episode before taking a second frame from the same episode, caps each bucket at
+two frames per episode by default, and requires a 60-frame gap between repeated
+frames from one episode.
 
 Overlay colors:
 

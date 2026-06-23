@@ -68,5 +68,7 @@ python scripts/train_vit_egoverse_handpose.py \
   --ranked-viz-every "${RANKED_VIZ_EVERY:-1}" \
   --ranked-viz-percentile "${RANKED_VIZ_PERCENTILE:-10}" \
   --ranked-viz-max-samples "${RANKED_VIZ_MAX_SAMPLES:-10}" \
+  --ranked-viz-max-per-episode "${RANKED_VIZ_MAX_PER_EPISODE:-2}" \
+  --ranked-viz-min-frame-gap "${RANKED_VIZ_MIN_FRAME_GAP:-60}" \
   "${FREEZE_ARG[@]}" \
   "${RESUME_ARG[@]}"

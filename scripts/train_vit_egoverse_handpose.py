@@ -151,6 +151,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ranked-viz-every", type=int, default=0, help="After test eval, render best/worst test samples every N epochs; 0 disables.")
     parser.add_argument("--ranked-viz-percentile", type=float, default=10.0, help="Percentile bucket for ranked visualizations, e.g. 10 renders bottom/top 10%% by MPJPE.")
     parser.add_argument("--ranked-viz-max-samples", type=int, default=10, help="Max samples to render per ranked bucket; 0 disables the cap.")
+    parser.add_argument("--ranked-viz-max-per-episode", type=int, default=2, help="Max ranked samples per episode per bucket; 0 disables the cap.")
+    parser.add_argument("--ranked-viz-min-frame-gap", type=int, default=60, help="Minimum frame_idx gap between ranked samples from the same episode.")
     parser.add_argument("--gt-radius", type=int, default=1)
     parser.add_argument("--pred-radius", type=int, default=2)
     parser.add_argument("--plot-every", type=int, default=1, help="Update loss chart every N epochs; 0 disables.")
@@ -772,11 +774,61 @@ def ranked_bucket_size(total_samples: int, percentile: float, max_samples: int) 
     return min(size, total_samples)
 
 
+def candidate_respects_frame_gap(row: dict, selected_rows: list[dict], min_frame_gap: int) -> bool:
+    if min_frame_gap <= 0:
+        return True
+    episode = row["episode_hash"]
+    frame_idx = int(row["frame_idx"])
+    for selected in selected_rows:
+        if selected["episode_hash"] != episode:
+            continue
+        if abs(frame_idx - int(selected["frame_idx"])) < min_frame_gap:
+            return False
+    return True
+
+
+def select_diverse_ranked_metrics(
+    sorted_metrics: list[dict],
+    *,
+    size: int,
+    max_per_episode: int,
+    min_frame_gap: int,
+) -> list[dict]:
+    if size <= 0:
+        return []
+    if max_per_episode < 0:
+        raise ValueError("max_per_episode must be >= 0")
+    if min_frame_gap < 0:
+        raise ValueError("min_frame_gap must be >= 0")
+
+    selected: list[dict] = []
+    selected_by_episode: dict[str, int] = {}
+    max_rounds = max_per_episode if max_per_episode > 0 else size
+    for round_idx in range(max_rounds):
+        made_progress = False
+        for row in sorted_metrics:
+            if len(selected) >= size:
+                return selected
+            episode = row["episode_hash"]
+            if selected_by_episode.get(episode, 0) != round_idx:
+                continue
+            if not candidate_respects_frame_gap(row, selected, min_frame_gap):
+                continue
+            selected.append(row)
+            selected_by_episode[episode] = round_idx + 1
+            made_progress = True
+        if not made_progress:
+            break
+    return selected
+
+
 def select_ranked_sample_metrics(
     sample_metrics: list[dict],
     *,
     percentile: float,
     max_samples: int,
+    max_per_episode: int,
+    min_frame_gap: int,
 ) -> dict[str, list[dict]]:
     valid_metrics = [
         row for row in sample_metrics
@@ -789,13 +841,33 @@ def select_ranked_sample_metrics(
     if size <= 0:
         return {}
     label = percentile_bucket_label(percentile)
+    best = select_diverse_ranked_metrics(
+        sorted_metrics,
+        size=size,
+        max_per_episode=max_per_episode,
+        min_frame_gap=min_frame_gap,
+    )
+    worst = select_diverse_ranked_metrics(
+        list(reversed(sorted_metrics)),
+        size=size,
+        max_per_episode=max_per_episode,
+        min_frame_gap=min_frame_gap,
+    )
     return {
-        f"bottom_{label}_best": sorted_metrics[:size],
-        f"top_{label}_worst": list(reversed(sorted_metrics[-size:])),
+        f"bottom_{label}_best": best,
+        f"top_{label}_worst": worst,
     }
 
 
-def append_ranked_sample_index(out_dir: Path, epoch: int, ranked: dict[str, list[dict]], percentile: float) -> None:
+def append_ranked_sample_index(
+    out_dir: Path,
+    epoch: int,
+    ranked: dict[str, list[dict]],
+    *,
+    percentile: float,
+    max_per_episode: int,
+    min_frame_gap: int,
+) -> None:
     index_path = out_dir / "ranked_viz" / "ranked_samples.jsonl"
     index_path.parent.mkdir(parents=True, exist_ok=True)
     with index_path.open("a") as f:
@@ -806,6 +878,8 @@ def append_ranked_sample_index(out_dir: Path, epoch: int, ranked: dict[str, list
                     "bucket": bucket,
                     "rank": rank,
                     "percentile": percentile,
+                    "max_per_episode": max_per_episode,
+                    "min_frame_gap": min_frame_gap,
                     **row,
                 }
                 f.write(json.dumps(payload) + "\n")
@@ -822,6 +896,8 @@ def save_ranked_visualizations(
     epoch: int,
     percentile: float,
     max_samples: int,
+    max_per_episode: int,
+    min_frame_gap: int,
     gt_radius: int,
     pred_radius: int,
 ) -> None:
@@ -829,11 +905,20 @@ def save_ranked_visualizations(
         sample_metrics,
         percentile=percentile,
         max_samples=max_samples,
+        max_per_episode=max_per_episode,
+        min_frame_gap=min_frame_gap,
     )
     if not ranked:
         return
 
-    append_ranked_sample_index(out_dir, epoch, ranked, percentile)
+    append_ranked_sample_index(
+        out_dir,
+        epoch,
+        ranked,
+        percentile=percentile,
+        max_per_episode=max_per_episode,
+        min_frame_gap=min_frame_gap,
+    )
     for bucket, rows in ranked.items():
         batch = default_collate([dataset[int(row["row_idx"])] for row in rows])
         sample_labels = [
@@ -1010,6 +1095,10 @@ def main() -> None:
         raise ValueError("--ranked-viz-percentile must be > 0 and <= 50")
     if args.ranked_viz_max_samples < 0:
         raise ValueError("--ranked-viz-max-samples must be >= 0")
+    if args.ranked_viz_max_per_episode < 0:
+        raise ValueError("--ranked-viz-max-per-episode must be >= 0")
+    if args.ranked_viz_min_frame_gap < 0:
+        raise ValueError("--ranked-viz-min-frame-gap must be >= 0")
     head_hidden_dims = parse_head_hidden_dims(args.head_hidden_dims)
     args.parsed_head_hidden_dims = list(head_hidden_dims)
     distributed, rank, _, local_rank = setup_distributed(args.distributed)
@@ -1199,6 +1288,8 @@ def main() -> None:
                     epoch=epoch + 1,
                     percentile=args.ranked_viz_percentile,
                     max_samples=args.ranked_viz_max_samples,
+                    max_per_episode=args.ranked_viz_max_per_episode,
+                    min_frame_gap=args.ranked_viz_min_frame_gap,
                     gt_radius=args.gt_radius,
                     pred_radius=args.pred_radius,
                 )
