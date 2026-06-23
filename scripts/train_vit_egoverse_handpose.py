@@ -7,6 +7,7 @@ import argparse
 import html
 import json
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -27,6 +28,8 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from egoverse_handpose_dataset import EgoVerseHandPoseDataset, IMAGENET_MEAN, IMAGENET_STD  # noqa: E402
+
+VIZ_SAMPLE_RE = re.compile(r"sample_(\d+)")
 
 HAND_EDGES = (
     (0, 1), (1, 2), (2, 3), (3, 4),
@@ -245,12 +248,25 @@ def draw_hand(
 def write_live_metrics_html(out_dir: Path) -> None:
     run_title = html.escape(out_dir.name.replace("_", " ").title())
     viz_images = sorted((out_dir / "viz").glob("*.png"))
+    grouped_viz: dict[str, list[Path]] = {}
+    for path in viz_images:
+        match = VIZ_SAMPLE_RE.search(path.stem)
+        sample_id = match.group(1) if match else "unknown"
+        grouped_viz.setdefault(sample_id, []).append(path)
     gallery_items = "\n".join(
-        f"""    <figure>
-      <img src="{html.escape(str(path.relative_to(out_dir)))}" alt="{html.escape(path.stem)}">
-      <figcaption>{html.escape(path.stem)}</figcaption>
-    </figure>"""
-        for path in viz_images
+        f"""    <section class="sample-row">
+      <h3>Test sample {html.escape(sample_id)}</h3>
+      <div class="sample-strip">
+{''.join(
+        f'''        <figure>
+          <img src="{html.escape(str(path.relative_to(out_dir)))}" alt="{html.escape(path.stem)}">
+          <figcaption>{html.escape(path.stem)}</figcaption>
+        </figure>
+'''
+        for path in paths
+    )}      </div>
+    </section>"""
+        for sample_id, paths in sorted(grouped_viz.items())
     )
     if not gallery_items:
         gallery_items = "    <p>No overlay images written yet.</p>"
@@ -264,11 +280,14 @@ def write_live_metrics_html(out_dir: Path) -> None:
   <style>
     body {{ margin: 24px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #111827; }}
     h1, h2 {{ margin: 0 0 12px; }}
+    h3 {{ margin: 0 0 8px; font-size: 15px; color: #334155; }}
     section {{ margin-top: 28px; }}
     .chart {{ max-width: min(1100px, 100%); border: 1px solid #cbd5e1; background: white; }}
-    .gallery {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(224px, 1fr)); gap: 14px; max-width: 1300px; }}
+    .gallery {{ display: grid; gap: 18px; max-width: 100%; }}
+    .sample-row {{ margin-top: 0; }}
+    .sample-strip {{ display: flex; gap: 14px; overflow-x: auto; padding-bottom: 4px; }}
     figure {{ margin: 0; padding: 8px; border: 1px solid #cbd5e1; background: white; }}
-    figure img {{ width: 100%; display: block; image-rendering: auto; }}
+    figure img {{ width: 224px; display: block; image-rendering: auto; }}
     figcaption {{ margin-top: 6px; font-size: 12px; color: #475569; overflow-wrap: anywhere; }}
   </style>
 </head>
@@ -281,6 +300,7 @@ def write_live_metrics_html(out_dir: Path) -> None:
   </section>
   <section>
     <h2>Overlay Images</h2>
+    <p>Fixed examples from the test split; each row is the same sample across epochs and steps.</p>
     <div class="gallery">
 {gallery_items}
     </div>
