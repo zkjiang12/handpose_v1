@@ -1189,6 +1189,10 @@ def main() -> None:
         viz_batch = make_viz_batch(test_dataset, args.viz_samples)
 
     metrics_history = read_metrics_history(metrics_path) if metrics_path is not None else []
+    best_test_mpjpe = min(
+        (float(row["test"]["mpjpe_mm"]) for row in metrics_history if "test" in row and "mpjpe_mm" in row["test"]),
+        default=float("inf"),
+    )
     for epoch in range(start_epoch, args.epochs):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
@@ -1258,6 +1262,9 @@ def main() -> None:
                 "args": vars(args),
             }
             torch.save(payload, out_dir / "last.pt")
+            if float(test_metrics["mpjpe_mm"]) < best_test_mpjpe:
+                best_test_mpjpe = float(test_metrics["mpjpe_mm"])
+                torch.save(payload, out_dir / "best.pt")
             if args.save_every > 0 and (epoch + 1) % args.save_every == 0:
                 checkpoint_dir = out_dir / "checkpoints"
                 torch.save(payload, checkpoint_dir / f"epoch_{epoch + 1:03d}.pt")

@@ -227,6 +227,30 @@ nohup env \
   > /workspace/runs/dinov3_small_mlp_001.log 2>&1 &
 ```
 
+DINOv3-L with a linear head on visibility-filtered manifests:
+
+```bash
+cd /workspace/handpose_v1
+git pull --ff-only origin main
+
+nohup env \
+  EGOVERSE_CACHE_DIR=/workspace/egoverse_cache \
+  TRAIN_CSV=/workspace/handpose_datasets/handpose_dataset_visible/train.csv \
+  TEST_CSV=/workspace/handpose_datasets/handpose_dataset_visible/test.csv \
+  OUT_DIR=/workspace/runs/dinov3_large_linear_visible_001 \
+  CACHE_BEFORE_TRAIN=0 \
+  EPOCHS=100 \
+  BATCH_SIZE=64 \
+  NUM_WORKERS=8 \
+  LR=1e-4 \
+  SAVE_EVERY=10 \
+  KEEP_CHECKPOINTS=2 \
+  MODEL_NAME=vit_large_patch16_dinov3 \
+  HEAD_TYPE=linear \
+  bash deploy/train_dinov3_base.sh \
+  > /workspace/runs/dinov3_large_linear_visible_001.log 2>&1 &
+```
+
 Check progress:
 
 ```bash

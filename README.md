@@ -155,6 +155,29 @@ Run the lightweight dataset checks:
   --test-csv outputs/handpose_dataset/test.csv
 ```
 
+Build visibility-filtered train/test manifests when training a single-frame RGB
+model. The filter keeps a hand only when at least half of its valid 3D joints
+project into the front RGB image, then drops rows with no remaining supervised
+hand:
+
+```bash
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python \
+  scripts/filter_egoverse_handpose_visibility.py \
+  --train-csv outputs/handpose_dataset/train.csv \
+  --test-csv outputs/handpose_dataset/test.csv \
+  --out-dir outputs/handpose_dataset_visible \
+  --min-visible-ratio 0.5
+```
+
+Check the filtered manifests:
+
+```bash
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python \
+  scripts/check_egoverse_handpose_dataset.py \
+  --train-csv outputs/handpose_dataset_visible/train.csv \
+  --test-csv outputs/handpose_dataset_visible/test.csv
+```
+
 Dry-run the training entrypoint without training:
 
 ```bash
@@ -212,6 +235,7 @@ outputs/vit_runs/<run>/metrics.jsonl           Loss and MPJPE per epoch
 outputs/vit_runs/<run>/loss_curve.png          Live-updated loss/MPJPE chart
 outputs/vit_runs/<run>/metrics_live.html       Auto-refreshing chart + overlay page
 outputs/vit_runs/<run>/last.pt                 Latest checkpoint
+outputs/vit_runs/<run>/best.pt                 Best checkpoint by test MPJPE
 outputs/vit_runs/<run>/checkpoints/epoch_*.pt  Per-epoch checkpoints
 outputs/vit_runs/<run>/viz/*.png               Predicted-vs-GT overlays
 outputs/vit_runs/<run>/viz3d/*.png             3D GT-vs-prediction plots
