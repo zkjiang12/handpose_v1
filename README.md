@@ -178,6 +178,23 @@ Check the filtered manifests:
   --test-csv outputs/handpose_dataset_visible/test.csv
 ```
 
+Optionally run a true MANO fit audit on the visibility-filtered labels. This
+requires the licensed MANO model files at `models/mano/MANO_LEFT.pkl` and
+`models/mano/MANO_RIGHT.pkl`; local MANO assets are ignored by git.
+
+```bash
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python -m ensurepip --upgrade
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python -m pip install smplx
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python -m pip install --no-build-isolation chumpy
+
+/Users/zikangjiang/dev/EgoVerse/emimic/bin/python \
+  scripts/audit_handpose_mano_fit.py \
+  --train-csv outputs/handpose_dataset_visible/train.csv \
+  --test-csv outputs/handpose_dataset_visible/test.csv \
+  --mano-model-root models \
+  --out-dir outputs/mano_fit_audit
+```
+
 Dry-run the training entrypoint without training:
 
 ```bash

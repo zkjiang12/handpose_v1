@@ -4,4 +4,4 @@ __pycache__/
 outputs/
 .env
 .egoverse_env
-
+models/mano/
