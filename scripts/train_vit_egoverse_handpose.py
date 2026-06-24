@@ -532,6 +532,62 @@ def per_sample_mpjpe_mm(pred: torch.Tensor, target: torch.Tensor, mask: torch.Te
     return sample_errors
 
 
+@torch.no_grad()
+def procrustes_aligned_joint_errors_mm(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    working_dtype = torch.float64 if pred.dtype != torch.float64 else pred.dtype
+    pred_work = pred.to(dtype=working_dtype)
+    target_work = target.to(dtype=working_dtype)
+    weights = mask.to(dtype=working_dtype).unsqueeze(-1)
+    counts = weights.sum(dim=2, keepdim=True).clamp_min(1.0)
+    pred_mean = (pred_work * weights).sum(dim=2, keepdim=True) / counts
+    target_mean = (target_work * weights).sum(dim=2, keepdim=True) / counts
+    pred_centered = (pred_work - pred_mean) * weights
+    target_centered = (target_work - target_mean) * weights
+    covariance = pred_centered.transpose(-2, -1).matmul(target_centered) / counts
+    variance = pred_centered.square().sum(dim=(-2, -1), keepdim=True).clamp_min(1e-12) / counts
+
+    u, singular_values, vh = torch.linalg.svd(covariance)
+    det = torch.linalg.det(u.matmul(vh))
+    correction = torch.ones_like(singular_values)
+    correction[..., -1] = torch.where(det < 0, -torch.ones_like(det), torch.ones_like(det))
+    rotation = u.matmul(torch.diag_embed(correction)).matmul(vh)
+    scale = (singular_values * correction).sum(dim=-1).view(*pred.shape[:2], 1, 1) / variance
+    aligned = scale * (pred_work - pred_mean).matmul(rotation) + target_mean
+    errors = torch.linalg.norm(aligned - target_work, dim=-1) * 1000.0
+    alignable = mask.sum(dim=2, keepdim=True) >= 3
+    valid = mask & alignable
+    return torch.where(valid, errors.to(dtype=pred.dtype), torch.full_like(errors, float("nan"), dtype=pred.dtype))
+
+
+@torch.no_grad()
+def pa_mpjpe_mm(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    errors = procrustes_aligned_joint_errors_mm(pred, target, mask)
+    valid = torch.isfinite(errors)
+    if not torch.any(valid):
+        return pred.sum() * 0.0
+    return errors[valid].mean()
+
+
+@torch.no_grad()
+def per_sample_pa_mpjpe_mm(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    errors = procrustes_aligned_joint_errors_mm(pred, target, mask)
+    flat_errors = errors.flatten(1)
+    flat_valid = torch.isfinite(flat_errors)
+    valid_counts = flat_valid.sum(dim=1)
+    sample_errors = torch.full(
+        (pred.shape[0],),
+        float("nan"),
+        dtype=errors.dtype,
+        device=errors.device,
+    )
+    valid_samples = valid_counts > 0
+    if torch.any(valid_samples):
+        sample_errors[valid_samples] = (
+            torch.nan_to_num(flat_errors, nan=0.0).sum(dim=1)[valid_samples] / valid_counts[valid_samples]
+        )
+    return sample_errors
+
+
 def project_points(points_cam: np.ndarray, image_size: int) -> np.ndarray:
     fx = 133.25430222 * 2 * (image_size / 640.0)
     fy = 133.25430222 * 2 * (image_size / 480.0)
@@ -706,7 +762,7 @@ def write_live_metrics_html(out_dir: Path) -> None:
   <h1>{run_title}</h1>
   <p>Auto-refreshes every 3 seconds; the file is rewritten on train-step logs, visualizations, and epoch summaries.</p>
   <section>
-    <h2>Loss / MPJPE</h2>
+    <h2>Loss / MPJPE / PA-MPJPE</h2>
     <img class="chart" src="loss_curve.png" alt="Loss curve">
   </section>
   <section>
@@ -725,7 +781,7 @@ def write_live_metrics_html(out_dir: Path) -> None:
   </section>
   <section>
     <h2>Ranked Test Overlays</h2>
-    <p>Bottom buckets are lowest MPJPE examples; top buckets are highest MPJPE examples from epoch-end test inference.</p>
+    <p>Bottom buckets are lowest MPJPE examples; top buckets are highest MPJPE examples from epoch-end test inference. Filenames and titles include PA-MPJPE when available.</p>
     <div class="gallery">
 {ranked_overlay_items}
     </div>
@@ -753,6 +809,16 @@ def maybe_open_live_plot(out_dir: Path, enabled: bool) -> None:
         print(f"Open metrics live page manually: {html_path}")
 
 
+def has_finite(values: list[float]) -> bool:
+    return any(math.isfinite(value) for value in values)
+
+
+def add_legend_if_any(ax) -> None:
+    handles, _ = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend()
+
+
 def update_metric_plot(history: list[dict], out_dir: Path) -> None:
     import matplotlib
 
@@ -762,10 +828,12 @@ def update_metric_plot(history: list[dict], out_dir: Path) -> None:
     epochs = [row["epoch"] for row in history]
     test_loss = [row["test"]["loss"] for row in history]
     test_mpjpe = [row["test"]["mpjpe_mm"] for row in history]
+    test_pa_mpjpe = [float(row["test"].get("pa_mpjpe_mm", float("nan"))) for row in history]
     train_steps = read_jsonl(out_dir / "train_steps.jsonl")
     train_x = []
     train_loss = []
     train_mpjpe = []
+    train_pa_mpjpe = []
     for row in train_steps:
         total_steps = max(1, int(row.get("total_steps", 1)))
         epoch = int(row.get("epoch", 1))
@@ -773,9 +841,11 @@ def update_metric_plot(history: list[dict], out_dir: Path) -> None:
         train_x.append(epoch - 1 + step / total_steps)
         train_loss.append(float(row.get("running_loss", row.get("loss", 0.0))))
         train_mpjpe.append(float(row.get("running_mpjpe_mm", row.get("mpjpe_mm", 0.0))))
+        train_pa_mpjpe.append(float(row.get("running_pa_mpjpe_mm", row.get("pa_mpjpe_mm", float("nan")))))
 
     epoch_train_loss = [row["train"]["loss"] for row in history]
     epoch_train_mpjpe = [row["train"]["mpjpe_mm"] for row in history]
+    epoch_train_pa_mpjpe = [float(row["train"].get("pa_mpjpe_mm", float("nan"))) for row in history]
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 8), dpi=140)
     if train_x:
@@ -785,28 +855,34 @@ def update_metric_plot(history: list[dict], out_dir: Path) -> None:
     axes[0, 0].set_title("Train SmoothL1 Loss")
     axes[0, 0].set_xlabel("epoch")
     axes[0, 0].grid(True, alpha=0.3)
-    axes[0, 0].legend()
+    add_legend_if_any(axes[0, 0])
 
     if train_x:
         axes[0, 1].plot(train_x, train_mpjpe, linewidth=1.8, label="train running")
+        if has_finite(train_pa_mpjpe):
+            axes[0, 1].plot(train_x, train_pa_mpjpe, linewidth=1.5, label="train PA running")
     elif epochs:
         axes[0, 1].plot(epochs, epoch_train_mpjpe, marker="o", label="train")
-    axes[0, 1].set_title("Train MPJPE (mm)")
+        if has_finite(epoch_train_pa_mpjpe):
+            axes[0, 1].plot(epochs, epoch_train_pa_mpjpe, marker="o", label="train PA")
+    axes[0, 1].set_title("Train MPJPE / PA-MPJPE (mm)")
     axes[0, 1].set_xlabel("epoch")
     axes[0, 1].grid(True, alpha=0.3)
-    axes[0, 1].legend()
+    add_legend_if_any(axes[0, 1])
 
     axes[1, 0].plot(epochs, test_loss, marker="o", linewidth=1.8, label="test epoch")
     axes[1, 0].set_title("Test SmoothL1 Loss")
     axes[1, 0].set_xlabel("epoch")
     axes[1, 0].grid(True, alpha=0.3)
-    axes[1, 0].legend()
+    add_legend_if_any(axes[1, 0])
 
     axes[1, 1].plot(epochs, test_mpjpe, marker="o", linewidth=1.8, label="test epoch")
-    axes[1, 1].set_title("Test MPJPE (mm)")
+    if has_finite(test_pa_mpjpe):
+        axes[1, 1].plot(epochs, test_pa_mpjpe, marker="o", linewidth=1.8, label="test PA epoch")
+    axes[1, 1].set_title("Test MPJPE / PA-MPJPE (mm)")
     axes[1, 1].set_xlabel("epoch")
     axes[1, 1].grid(True, alpha=0.3)
-    axes[1, 1].legend()
+    add_legend_if_any(axes[1, 1])
 
     fig.tight_layout()
     fig.savefig(out_dir / "loss_curve.png")
@@ -1131,11 +1207,19 @@ def save_ranked_visualizations(
     for bucket, rows in ranked.items():
         batch = default_collate([dataset[int(row["row_idx"])] for row in rows])
         sample_labels = [
-            f"rank_{rank:02d}_sample_{int(row['row_idx']):06d}_mpjpe_{filename_float(float(row['mpjpe_mm']))}mm"
+            (
+                f"rank_{rank:02d}_sample_{int(row['row_idx']):06d}"
+                f"_mpjpe_{filename_float(float(row['mpjpe_mm']))}mm"
+                f"_pa_{filename_float(float(row.get('pa_mpjpe_mm', float('nan'))))}mm"
+            )
             for rank, row in enumerate(rows, start=1)
         ]
         title_labels = [
-            f"{bucket.replace('_', ' ')} rank {rank} MPJPE {float(row['mpjpe_mm']):.2f} mm"
+            (
+                f"{bucket.replace('_', ' ')} rank {rank} "
+                f"MPJPE {float(row['mpjpe_mm']):.2f} mm "
+                f"PA-MPJPE {float(row.get('pa_mpjpe_mm', float('nan'))):.2f} mm"
+            )
             for rank, row in enumerate(rows, start=1)
         ]
         save_visualizations(
@@ -1201,8 +1285,10 @@ def train_one_epoch(
     model.train()
     total_loss = 0.0
     total_mpjpe = 0.0
+    total_pa_mpjpe = 0.0
     window_loss = 0.0
     window_mpjpe = 0.0
+    window_pa_mpjpe = 0.0
     window_steps = 0
     steps = 0
     total_steps = len(loader)
@@ -1226,14 +1312,21 @@ def train_one_epoch(
         batch_data_loss = float(data_loss.detach().cpu())
         batch_reg_loss = float(reg_loss.detach().cpu()) if reg_loss is not None else 0.0
         batch_mpjpe = float(mpjpe_mm(pred.detach(), target, mask).cpu())
+        batch_pa_mpjpe = float(pa_mpjpe_mm(pred.detach(), target, mask).cpu())
         total_loss += batch_loss
         total_mpjpe += batch_mpjpe
+        total_pa_mpjpe += batch_pa_mpjpe
         steps += 1
         window_loss += batch_loss
         window_mpjpe += batch_mpjpe
+        window_pa_mpjpe += batch_pa_mpjpe
         window_steps += 1
         if progress:
-            iterator.set_postfix(loss=f"{total_loss / max(1, steps):.4f}", mpjpe=f"{total_mpjpe / max(1, steps):.1f}")
+            iterator.set_postfix(
+                loss=f"{total_loss / max(1, steps):.4f}",
+                mpjpe=f"{total_mpjpe / max(1, steps):.1f}",
+                pa=f"{total_pa_mpjpe / max(1, steps):.1f}",
+            )
         should_log = log_every_steps > 0 and (steps % log_every_steps == 0 or steps == total_steps)
         if should_log and step_metrics_path is not None:
             row = {
@@ -1242,10 +1335,12 @@ def train_one_epoch(
                 "total_steps": total_steps,
                 "loss": window_loss / max(1, window_steps),
                 "mpjpe_mm": window_mpjpe / max(1, window_steps),
+                "pa_mpjpe_mm": window_pa_mpjpe / max(1, window_steps),
                 "data_loss": batch_data_loss,
                 "reg_loss": batch_reg_loss,
                 "running_loss": total_loss / max(1, steps),
                 "running_mpjpe_mm": total_mpjpe / max(1, steps),
+                "running_pa_mpjpe_mm": total_pa_mpjpe / max(1, steps),
             }
             print(json.dumps({"train_step": row}), flush=True)
             with step_metrics_path.open("a") as f:
@@ -1255,12 +1350,18 @@ def train_one_epoch(
             write_live_metrics_html(step_metrics_path.parent)
             window_loss = 0.0
             window_mpjpe = 0.0
+            window_pa_mpjpe = 0.0
             window_steps = 0
         if viz_steps is not None and viz_callback is not None and steps in viz_steps:
             viz_callback(steps)
         if max_steps is not None and steps >= max_steps:
             break
-    return {"loss": total_loss / max(1, steps), "mpjpe_mm": total_mpjpe / max(1, steps), "steps": steps}
+    return {
+        "loss": total_loss / max(1, steps),
+        "mpjpe_mm": total_mpjpe / max(1, steps),
+        "pa_mpjpe_mm": total_pa_mpjpe / max(1, steps),
+        "steps": steps,
+    }
 
 
 @torch.no_grad()
@@ -1275,6 +1376,7 @@ def evaluate(
     model.eval()
     total_loss = 0.0
     total_mpjpe = 0.0
+    total_pa_mpjpe = 0.0
     steps = 0
     sample_metrics: list[dict] = []
     for batch in loader:
@@ -1284,8 +1386,10 @@ def evaluate(
         pred, _ = unpack_model_output(model(image))
         total_loss += float(masked_smooth_l1(pred, target, mask).cpu())
         total_mpjpe += float(mpjpe_mm(pred, target, mask).cpu())
+        total_pa_mpjpe += float(pa_mpjpe_mm(pred, target, mask).cpu())
         if collect_sample_metrics:
             sample_errors = per_sample_mpjpe_mm(pred, target, mask).detach().cpu().numpy()
+            sample_pa_errors = per_sample_pa_mpjpe_mm(pred, target, mask).detach().cpu().numpy()
             row_indices = batch["row_idx"].detach().cpu().numpy()
             for i, sample_mpjpe in enumerate(sample_errors):
                 sample_metrics.append(
@@ -1294,12 +1398,18 @@ def evaluate(
                         "episode_hash": batch["episode_hash"][i],
                         "frame_idx": int(batch["frame_idx"][i]),
                         "mpjpe_mm": float(sample_mpjpe),
+                        "pa_mpjpe_mm": float(sample_pa_errors[i]),
                     }
                 )
         steps += 1
         if max_steps is not None and steps >= max_steps:
             break
-    metrics = {"loss": total_loss / max(1, steps), "mpjpe_mm": total_mpjpe / max(1, steps), "steps": steps}
+    metrics = {
+        "loss": total_loss / max(1, steps),
+        "mpjpe_mm": total_mpjpe / max(1, steps),
+        "pa_mpjpe_mm": total_pa_mpjpe / max(1, steps),
+        "steps": steps,
+    }
     return metrics, sample_metrics
 
 
