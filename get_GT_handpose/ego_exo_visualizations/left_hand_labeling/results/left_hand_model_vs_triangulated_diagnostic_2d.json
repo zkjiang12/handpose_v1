@@ -1,0 +1,11 @@
+{
+  "method": "Panel A shows actual scale. Panel B magnifies model-to-triangulated joint residuals by 4x. Panel C colors each measured-model bone by signed length error.",
+  "joint_delta_mean_mm": 6.76301031310243,
+  "joint_delta_median_mm": 6.398587942780148,
+  "joint_delta_max_mm": 15.7016391061339,
+  "max_abs_bone_error_mm": 15.701639106133896,
+  "generated_files": {
+    "diagnostic_2d": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_model_vs_triangulated_diagnostic_2d.png",
+    "signed_error_skeleton": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_model_vs_triangulated_signed_error_skeleton.png"
+  }
+}

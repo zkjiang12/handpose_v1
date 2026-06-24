@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Marker Point Labeling</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f2;
+      color: #1f2328;
+    }
+    body {
+      margin: 0;
+      padding: 20px;
+    }
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    input, button {
+      font: inherit;
+      border: 1px solid #c8c8c0;
+      background: white;
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+    input[type="range"] {
+      width: 180px;
+      padding: 0;
+    }
+    button {
+      cursor: pointer;
+    }
+    button.primary {
+      background: #1f6feb;
+      color: white;
+      border-color: #1f6feb;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .panel {
+      background: white;
+      border: 1px solid #d8d8d0;
+      border-radius: 8px;
+      padding: 10px;
+      min-width: 0;
+    }
+    .panel h2 {
+      font-size: 15px;
+      margin: 0 0 8px;
+    }
+    .stage {
+      position: relative;
+      overflow: auto;
+      border: 1px solid #e0e0d8;
+      background: #111;
+      height: 68vh;
+    }
+    .stage img {
+      display: block;
+      width: calc(100% * var(--zoom, 1));
+      max-width: none;
+      height: auto;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+    .point {
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      background: #ff2b2b;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 2px #111, 0 1px 8px rgba(0,0,0,.45);
+      pointer-events: none;
+    }
+    .point span {
+      position: absolute;
+      left: 16px;
+      top: -14px;
+      background: rgba(0,0,0,.78);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 170px;
+      margin-top: 14px;
+      padding: 10px;
+      border: 1px solid #c8c8c0;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+    .hint {
+      font-size: 13px;
+      color: #555;
+      margin-top: 8px;
+    }
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Marker point labeling</h1>
+      <div class="hint">Type a point name, click that same physical point in both camera images, then export JSON.</div>
+    </div>
+    <div class="controls">
+      <input id="pointName" value="tip" aria-label="Point name">
+      <label>Zoom <input id="zoom" type="range" min="1" max="6" step="0.25" value="1"></label>
+      <span id="zoomValue">100%</span>
+      <button id="undo">Undo Last</button>
+      <button id="clear">Clear</button>
+      <button class="primary" id="export">Export JSON</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="panel">
+      <h2>cam1, t=115s</h2>
+      <div class="stage" data-cam="cam1">
+        <img src="cam1_t115_clean.jpg" width="1920" height="1080" alt="cam1 frame">
+      </div>
+    </section>
+    <section class="panel">
+      <h2>cam2, t=115s</h2>
+      <div class="stage" data-cam="cam2">
+        <img src="cam2_t115_clean.jpg" width="1920" height="1080" alt="cam2 frame">
+      </div>
+    </section>
+  </main>
+
+  <textarea id="output" spellcheck="false" aria-label="Exported JSON"></textarea>
+
+  <script>
+    const labels = [];
+    const stages = [...document.querySelectorAll(".stage")];
+    const pointName = document.querySelector("#pointName");
+    const output = document.querySelector("#output");
+    const zoom = document.querySelector("#zoom");
+    const zoomValue = document.querySelector("#zoomValue");
+
+    function imageCoords(event, stage) {
+      const img = stage.querySelector("img");
+      const rect = img.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * (img.naturalWidth / rect.width);
+      const y = (event.clientY - rect.top) * (img.naturalHeight / rect.height);
+      return [Number(x.toFixed(2)), Number(y.toFixed(2))];
+    }
+
+    function render() {
+      document.querySelectorAll(".point").forEach(el => el.remove());
+      for (const label of labels) {
+        const stage = document.querySelector(`.stage[data-cam="${label.cam}"]`);
+        const img = stage.querySelector("img");
+        const rect = img.getBoundingClientRect();
+        const px = label.xy[0] / img.naturalWidth * rect.width;
+        const py = label.xy[1] / img.naturalHeight * rect.height;
+        const el = document.createElement("div");
+        el.className = "point";
+        el.style.left = `${px}px`;
+        el.style.top = `${py}px`;
+        el.innerHTML = `<span>${label.name}</span>`;
+        stage.appendChild(el);
+      }
+      output.value = JSON.stringify(toExport(), null, 2);
+    }
+
+    function toExport() {
+      const grouped = {};
+      for (const label of labels) {
+        grouped[label.name] ??= {};
+        grouped[label.name][label.cam] = label.xy;
+      }
+      return {
+        frame_time_s: 115,
+        image_size: [1920, 1080],
+        points: grouped
+      };
+    }
+
+    stages.forEach(stage => {
+      stage.addEventListener("click", event => {
+        const name = pointName.value.trim();
+        if (!name) return;
+        labels.push({
+          name,
+          cam: stage.dataset.cam,
+          xy: imageCoords(event, stage)
+        });
+        render();
+      });
+    });
+
+    document.querySelector("#undo").addEventListener("click", () => {
+      labels.pop();
+      render();
+    });
+
+    document.querySelector("#clear").addEventListener("click", () => {
+      labels.length = 0;
+      render();
+    });
+
+    document.querySelector("#export").addEventListener("click", async () => {
+      render();
+      output.select();
+      try {
+        await navigator.clipboard.writeText(output.value);
+      } catch (_) {
+        document.execCommand("copy");
+      }
+    });
+
+    zoom.addEventListener("input", () => {
+      const value = Number(zoom.value);
+      document.documentElement.style.setProperty("--zoom", String(value));
+      zoomValue.textContent = `${Math.round(value * 100)}%`;
+      render();
+    });
+
+    window.addEventListener("resize", render);
+    document.documentElement.style.setProperty("--zoom", "1");
+    render();
+  </script>
+</body>
+</html>

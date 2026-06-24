@@ -1,0 +1,143 @@
+{
+  "intrinsics": [
+    [
+      699.19397931,
+      0.0,
+      976.75087121
+    ],
+    [
+      0.0,
+      699.60395977,
+      565.79050329
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "distortion_model": "opencv_fisheye_equidistant",
+  "distortion": [
+    -0.0180332,
+    0.06173989,
+    -0.05266772,
+    0.01903308
+  ],
+  "board": {
+    "cols": 14,
+    "rows": 10,
+    "square_mm": 40.0,
+    "marker_mm": 20.0,
+    "dictionary": "DICT_5X5_100"
+  },
+  "cameras": {
+    "cam1": {
+      "video": "/Users/zikangjiang/dev/ego-exo/v1-cam1/a77033-H-0001.mp4",
+      "stable_interval_s": [
+        60,
+        130
+      ],
+      "num_pose_samples": 15,
+      "best_visualized_frame_s": 75,
+      "rvec_world_to_cam": [
+        -0.48836688475205214,
+        -0.5198819475175219,
+        -1.47876290032382
+      ],
+      "R_world_to_cam": [
+        [
+          0.02381086130947911,
+          0.9992978445362097,
+          -0.028928546264651578
+        ],
+        [
+          -0.7975509964869856,
+          0.03643528966500223,
+          0.6021502118820881
+        ],
+        [
+          0.6027814287835326,
+          0.00873427571769475,
+          0.7978585473261347
+        ]
+      ],
+      "t_world_to_cam_mm": [
+        -182.3531532658503,
+        391.96668720612627,
+        401.2891399656826
+      ],
+      "camera_center_world_mm": [
+        75.06576646887882,
+        164.4387232245819,
+        -561.4700056534188
+      ],
+      "reprojection_mean_px": 0.7031524573196981,
+      "reprojection_median_px": 0.6105525215111878,
+      "reprojection_max_px": 7.87718605590907
+    },
+    "cam2": {
+      "video": "/Users/zikangjiang/dev/ego-exo/v1-cam2/a72491-H-0001.mp4",
+      "stable_interval_s": [
+        55,
+        120
+      ],
+      "num_pose_samples": 14,
+      "best_visualized_frame_s": 55,
+      "rvec_world_to_cam": [
+        -0.6214308067842514,
+        -0.05016005893621493,
+        0.006488053632500707
+      ],
+      "R_world_to_cam": [
+        [
+          0.9987618382842196,
+          0.009011321045939307,
+          -0.04892429335343909
+        ],
+        [
+          0.02116290870046956,
+          0.8130660101625514,
+          0.5817867258830209
+        ],
+        [
+          0.04502134696410075,
+          -0.5821017601857572,
+          0.8118685971917999
+        ]
+      ],
+      "t_world_to_cam_mm": [
+        -476.86797286380107,
+        31.45458683284047,
+        630.2057762791299
+      ],
+      "camera_center_world_mm": [
+        447.23914973432176,
+        345.5664466338259,
+        -553.2745692126363
+      ],
+      "reprojection_mean_px": 1.640400644292806,
+      "reprojection_median_px": 1.5373120104856934,
+      "reprojection_max_px": 12.092527399891223
+    }
+  },
+  "board_corner_triangulation_validation": {
+    "camera_pair": [
+      "cam1",
+      "cam2"
+    ],
+    "num_common_corners": 108,
+    "mean_error_mm": 2.8774596379013837,
+    "median_error_mm": 2.6513909968260636,
+    "max_error_mm": 7.0938995725619955,
+    "note": "Sanity check uses ChArUco board corners, so it is not an independent hand-pose accuracy estimate."
+  },
+  "generated_images": [
+    "/Users/zikangjiang/dev/ego-exo/visualizations/00_process_contact_sheet.jpg",
+    "/Users/zikangjiang/dev/ego-exo/visualizations/cam1_01_2d_charuco_detection.jpg",
+    "/Users/zikangjiang/dev/ego-exo/visualizations/cam1_02_reprojection_overlay.jpg",
+    "/Users/zikangjiang/dev/ego-exo/visualizations/cam2_01_2d_charuco_detection.jpg",
+    "/Users/zikangjiang/dev/ego-exo/visualizations/cam2_02_reprojection_overlay.jpg",
+    "/Users/zikangjiang/dev/ego-exo/visualizations/03_3d_board_and_camera_poses.png",
+    "/Users/zikangjiang/dev/ego-exo/visualizations/04_triangulated_board_corners_validation.png"
+  ]
+}

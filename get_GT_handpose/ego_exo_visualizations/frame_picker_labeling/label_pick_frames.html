@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pick Matched Frames and Label Points</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f6f2;
+      color: #1f2328;
+      --zoom: 1;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 18px; }
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+    .hint {
+      margin-top: 5px;
+      color: #555;
+      font-size: 13px;
+    }
+    .toolbar, .camera-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .toolbar {
+      justify-content: flex-end;
+    }
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #30363d;
+    }
+    input, select, button {
+      font: inherit;
+      border: 1px solid #c8c8c0;
+      background: #fff;
+      color: #1f2328;
+      border-radius: 6px;
+      padding: 7px 9px;
+    }
+    input[type="number"] { width: 92px; }
+    input[type="range"] {
+      width: 180px;
+      padding: 0;
+    }
+    button {
+      cursor: pointer;
+      min-height: 34px;
+    }
+    button.primary {
+      background: #1f6feb;
+      border-color: #1f6feb;
+      color: #fff;
+    }
+    button.active {
+      background: #111827;
+      border-color: #111827;
+      color: #fff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .panel {
+      min-width: 0;
+      background: #fff;
+      border: 1px solid #d8d8d0;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    h2 {
+      margin: 0;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+    .time-readout {
+      color: #555;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .camera-controls {
+      margin-bottom: 8px;
+    }
+    .stage {
+      position: relative;
+      overflow: auto;
+      height: 68vh;
+      min-height: 420px;
+      border: 1px solid #d8d8d0;
+      background: #111;
+    }
+    .video-wrap {
+      position: relative;
+      width: calc(100% * var(--zoom));
+      min-width: calc(100% * var(--zoom));
+    }
+    video {
+      display: block;
+      width: 100%;
+      height: auto;
+      user-select: none;
+      background: #000;
+    }
+    .point {
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      border: 1.5px solid #fff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 1.5px #111, 0 1px 6px rgba(0,0,0,.55);
+      pointer-events: none;
+      z-index: 3;
+    }
+    .point.tip { background: #ff2b2b; }
+    .point.tail { background: #28a745; }
+    .point span {
+      position: absolute;
+      left: 10px;
+      top: -13px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(0,0,0,.78);
+      color: #fff;
+      font-size: 11px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    textarea {
+      display: block;
+      width: 100%;
+      min-height: 190px;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #c8c8c0;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      resize: vertical;
+    }
+    .status {
+      margin-top: 8px;
+      min-height: 18px;
+      color: #555;
+      font-size: 13px;
+    }
+
+    @media (max-width: 980px) {
+      header { display: block; }
+      .toolbar {
+        justify-content: flex-start;
+        margin-top: 10px;
+      }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Pick matched frames, then label marker points</h1>
+      <div class="hint">Set a different time for each camera if needed. Click the same physical point in both views.</div>
+    </div>
+    <div class="toolbar">
+      <label>Point
+        <select id="pointName">
+          <option value="tip">tip</option>
+          <option value="tail">tail</option>
+        </select>
+      </label>
+      <button id="tipButton" class="active" type="button">Tip</button>
+      <button id="tailButton" type="button">Tail</button>
+      <label>Zoom <input id="zoom" type="range" min="1" max="16" step="0.25" value="1"></label>
+      <span id="zoomValue" class="time-readout">100%</span>
+      <button id="undo" type="button">Undo</button>
+      <button id="clear" type="button">Clear</button>
+      <button class="primary" id="export" type="button">Copy JSON</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="panel" data-cam="cam1">
+      <div class="panel-head">
+        <h2>cam1</h2>
+        <div class="time-readout" id="cam1Readout">loading</div>
+      </div>
+      <div class="camera-controls">
+        <button type="button" data-play>Play/Pause</button>
+        <button type="button" data-step="-1">-1s</button>
+        <button type="button" data-frame="-1">-1 frame</button>
+        <label>time <input id="cam1Time" type="number" min="0" max="180" step="0.001" value="95.000"></label>
+        <button type="button" data-set>Set</button>
+        <button type="button" data-frame="1">+1 frame</button>
+        <button type="button" data-step="1">+1s</button>
+      </div>
+      <div class="stage">
+        <div class="video-wrap">
+          <video id="cam1Video" preload="metadata" muted playsinline src="../../v1-cam1/a77033-H-0001.mp4"></video>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-cam="cam2">
+      <div class="panel-head">
+        <h2>cam2</h2>
+        <div class="time-readout" id="cam2Readout">loading</div>
+      </div>
+      <div class="camera-controls">
+        <button type="button" data-play>Play/Pause</button>
+        <button type="button" data-step="-1">-1s</button>
+        <button type="button" data-frame="-1">-1 frame</button>
+        <label>time <input id="cam2Time" type="number" min="0" max="180" step="0.001" value="95.000"></label>
+        <button type="button" data-set>Set</button>
+        <button type="button" data-frame="1">+1 frame</button>
+        <button type="button" data-step="1">+1s</button>
+      </div>
+      <div class="stage">
+        <div class="video-wrap">
+          <video id="cam2Video" preload="metadata" muted playsinline src="../../v1-cam2/a72491-H-0001.mp4"></video>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <textarea id="output" spellcheck="false" aria-label="Exported JSON"></textarea>
+  <div class="status" id="status"></div>
+
+  <script>
+    const FRAME_RATE = 30;
+    const IMAGE_SIZE = [1920, 1080];
+    const VIDEO_PATHS = {
+      cam1: "../../v1-cam1/a77033-H-0001.mp4",
+      cam2: "../../v1-cam2/a72491-H-0001.mp4"
+    };
+
+    const state = {
+      activePoint: "tip",
+      clickOrder: [],
+      points: {
+        tip: {},
+        tail: {}
+      }
+    };
+
+    const panels = [...document.querySelectorAll(".panel")];
+    const pointName = document.querySelector("#pointName");
+    const output = document.querySelector("#output");
+    const status = document.querySelector("#status");
+    const zoom = document.querySelector("#zoom");
+    const zoomValue = document.querySelector("#zoomValue");
+    const pointButtons = {
+      tip: document.querySelector("#tipButton"),
+      tail: document.querySelector("#tailButton")
+    };
+
+    function cameraControls(cam) {
+      return {
+        panel: document.querySelector(`.panel[data-cam="${cam}"]`),
+        video: document.querySelector(`#${cam}Video`),
+        timeInput: document.querySelector(`#${cam}Time`),
+        readout: document.querySelector(`#${cam}Readout`)
+      };
+    }
+
+    const cameras = {
+      cam1: cameraControls("cam1"),
+      cam2: cameraControls("cam2")
+    };
+
+    function round2(value) {
+      return Number(value.toFixed(2));
+    }
+
+    function round3(value) {
+      return Number(value.toFixed(3));
+    }
+
+    function clampTime(video, time) {
+      const duration = Number.isFinite(video.duration) ? video.duration : 180;
+      return Math.max(0, Math.min(duration, time));
+    }
+
+    function setActivePoint(name) {
+      state.activePoint = name;
+      pointName.value = name;
+      for (const [key, button] of Object.entries(pointButtons)) {
+        button.classList.toggle("active", key === name);
+      }
+    }
+
+    function seek(cam, time) {
+      const { video, timeInput } = cameras[cam];
+      const clamped = clampTime(video, time);
+      video.pause();
+      video.currentTime = clamped;
+      timeInput.value = clamped.toFixed(3);
+      updateReadout(cam);
+    }
+
+    function updateReadout(cam) {
+      const { video, readout, timeInput } = cameras[cam];
+      const time = Number.isFinite(video.currentTime) ? video.currentTime : Number(timeInput.value);
+      const frame = Math.round(time * FRAME_RATE);
+      timeInput.value = time.toFixed(3);
+      readout.textContent = `t=${time.toFixed(3)}s | frame ${frame}`;
+      render();
+    }
+
+    function pixelFromClick(event, video) {
+      const rect = video.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * (IMAGE_SIZE[0] / rect.width);
+      const y = (event.clientY - rect.top) * (IMAGE_SIZE[1] / rect.height);
+      return [round2(x), round2(y)];
+    }
+
+    function removePointElement(el) {
+      if (el.classList.contains("point")) el.remove();
+    }
+
+    function exportData() {
+      const camMeta = {};
+      for (const cam of Object.keys(cameras)) {
+        const { video } = cameras[cam];
+        const time = round3(video.currentTime || 0);
+        camMeta[cam] = {
+          time_s: time,
+          frame_index_30fps: Math.round(time * FRAME_RATE),
+          video: VIDEO_PATHS[cam]
+        };
+      }
+      return {
+        image_size: IMAGE_SIZE,
+        cameras: camMeta,
+        points: state.points
+      };
+    }
+
+    function render() {
+      document.querySelectorAll(".point").forEach(removePointElement);
+      for (const [name, byCamera] of Object.entries(state.points)) {
+        for (const [cam, xy] of Object.entries(byCamera)) {
+          const { video } = cameras[cam];
+          const wrap = video.closest(".video-wrap");
+          const rect = video.getBoundingClientRect();
+          const px = xy[0] / IMAGE_SIZE[0] * rect.width;
+          const py = xy[1] / IMAGE_SIZE[1] * rect.height;
+          const el = document.createElement("div");
+          el.className = `point ${name}`;
+          el.style.left = `${px}px`;
+          el.style.top = `${py}px`;
+          el.innerHTML = `<span>${name}</span>`;
+          wrap.appendChild(el);
+        }
+      }
+      output.value = JSON.stringify(exportData(), null, 2);
+    }
+
+    panels.forEach(panel => {
+      const cam = panel.dataset.cam;
+      const controls = cameras[cam];
+      const { video, timeInput } = controls;
+
+      video.addEventListener("loadedmetadata", () => {
+        seek(cam, Number(timeInput.value));
+      });
+      video.addEventListener("seeked", () => updateReadout(cam));
+      video.addEventListener("timeupdate", () => updateReadout(cam));
+      video.addEventListener("error", () => {
+        status.textContent = `${cam} video did not load. If this happens, tell me and I will make H.264 preview files.`;
+      });
+
+      panel.querySelector("[data-set]").addEventListener("click", () => {
+        seek(cam, Number(timeInput.value));
+      });
+      panel.querySelector("[data-play]").addEventListener("click", async () => {
+        if (video.paused) {
+          await video.play();
+        } else {
+          video.pause();
+        }
+      });
+      timeInput.addEventListener("keydown", event => {
+        if (event.key === "Enter") seek(cam, Number(timeInput.value));
+      });
+      panel.querySelectorAll("[data-step]").forEach(button => {
+        button.addEventListener("click", () => {
+          seek(cam, video.currentTime + Number(button.dataset.step));
+        });
+      });
+      panel.querySelectorAll("[data-frame]").forEach(button => {
+        button.addEventListener("click", () => {
+          seek(cam, video.currentTime + Number(button.dataset.frame) / FRAME_RATE);
+        });
+      });
+      panel.querySelector(".stage").addEventListener("click", event => {
+        const xy = pixelFromClick(event, video);
+        const previous = state.points[state.activePoint][cam] ? [...state.points[state.activePoint][cam]] : null;
+        state.points[state.activePoint][cam] = xy;
+        state.clickOrder.push({ point: state.activePoint, cam, previous });
+        render();
+      });
+    });
+
+    pointName.addEventListener("change", () => setActivePoint(pointName.value));
+    pointButtons.tip.addEventListener("click", () => setActivePoint("tip"));
+    pointButtons.tail.addEventListener("click", () => setActivePoint("tail"));
+    zoom.addEventListener("input", () => {
+      const value = Number(zoom.value);
+      document.documentElement.style.setProperty("--zoom", String(value));
+      zoomValue.textContent = `${Math.round(value * 100)}%`;
+      render();
+    });
+    document.querySelector("#undo").addEventListener("click", () => {
+      const last = state.clickOrder.pop();
+      if (!last) return;
+      if (last.previous) {
+        state.points[last.point][last.cam] = last.previous;
+      } else {
+        delete state.points[last.point][last.cam];
+      }
+      render();
+    });
+    document.querySelector("#clear").addEventListener("click", () => {
+      state.points.tip = {};
+      state.points.tail = {};
+      state.clickOrder = [];
+      render();
+    });
+    document.querySelector("#export").addEventListener("click", async () => {
+      render();
+      output.select();
+      try {
+        await navigator.clipboard.writeText(output.value);
+        status.textContent = "Copied JSON to clipboard.";
+      } catch (_) {
+        document.execCommand("copy");
+        status.textContent = "Selected JSON. Copy it if the clipboard prompt did not work.";
+      }
+    });
+    window.addEventListener("resize", render);
+
+    setActivePoint("tip");
+    render();
+  </script>
+</body>
+</html>

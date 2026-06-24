@@ -1,0 +1,31 @@
+{
+  "chosen_pixels": {
+    "cam1": {
+      "video": "/Users/zikangjiang/dev/ego-exo/v1-cam1/a77033-H-0001.mp4",
+      "time_s": 115,
+      "xy": [
+        1053.9,
+        755.8
+      ]
+    },
+    "cam2": {
+      "video": "/Users/zikangjiang/dev/ego-exo/v1-cam2/a72491-H-0001.mp4",
+      "time_s": 115,
+      "xy": [
+        741.8,
+        849.2
+      ]
+    }
+  },
+  "triangulated_world_mm": [
+    291.39716608987834,
+    237.9750887688938,
+    -17.834744828928322
+  ],
+  "signed_z_mm": -17.834744828928322,
+  "height_above_board_camera_side_mm": 17.834744828928322,
+  "outputs": [
+    "/Users/zikangjiang/dev/ego-exo/visualizations/marker_triangulation/marker_pixel_overlay_both.jpg",
+    "/Users/zikangjiang/dev/ego-exo/visualizations/marker_triangulation/marker_3d_height_scene.png"
+  ]
+}

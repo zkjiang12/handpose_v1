@@ -1,0 +1,60 @@
+{
+  "result_source": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_cam1_69_cam2_64_labels_triangulated_hand21.json",
+  "labels_source": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/left_hand_cam1_69_cam2_64_labels.json",
+  "board": {
+    "origin_world_mm": [
+      0,
+      0,
+      0
+    ],
+    "plane": "z=0",
+    "width_mm": 560.0,
+    "height_mm": 400.0,
+    "square_mm": 40.0
+  },
+  "cameras": {
+    "cam1": {
+      "center_world_mm": [
+        76.7234970826841,
+        169.0210026153822,
+        -562.531938473211
+      ],
+      "source": "exact_frame_charuco",
+      "charuco_corners": 49,
+      "reprojection_mean_px": 0.823531239470539,
+      "reprojection_median_px": 0.6267636997808366
+    },
+    "cam2": {
+      "center_world_mm": [
+        442.65652507223064,
+        346.2687502323764,
+        -557.2932806801814
+      ],
+      "source": "exact_frame_charuco",
+      "charuco_corners": 51,
+      "reprojection_mean_px": 1.1698427639103954,
+      "reprojection_median_px": 0.9571455137848984
+    }
+  },
+  "hand_bounds_world_mm": {
+    "min": [
+      360.9785302143999,
+      168.80141945016376,
+      -224.8147200926198
+    ],
+    "max": [
+      478.8016890258993,
+      327.1483595315689,
+      -141.8252866382366
+    ],
+    "centroid": [
+      432.0280052874416,
+      262.06235541027627,
+      -167.08856452227232
+    ]
+  },
+  "generated_files": {
+    "single_view": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_world_scene_board_cameras.png",
+    "multi_view": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_world_scene_board_cameras_multiview.png"
+  }
+}

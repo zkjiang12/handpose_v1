@@ -1,0 +1,48 @@
+{
+  "schema": "labeled_hand_joint_reference_v1",
+  "created_at": "2026-06-24T00:11:56-07:00",
+  "hand_side": "left",
+  "source_image": "left_hand_labeled_joints_2026-06-24_0011.png",
+  "source_image_sha256": "e796fb8f8a6c6e2c377396748004462f99c350d0b0a23ff04abce52b158f589f",
+  "source_image_size_px": {
+    "width": 750,
+    "height": 866
+  },
+  "joint_convention": {
+    "name": "practical_21_point_hand_labels",
+    "description": "Wrist root plus 4 labeled digit joints per finger.",
+    "digit_joint_count_per_finger": 4,
+    "root_joint": "wrist",
+    "digits": {
+      "thumb": ["thumb_cmc", "thumb_mcp", "thumb_ip", "thumb_tip"],
+      "index": ["index_mcp", "index_pip", "index_dip", "index_tip"],
+      "middle": ["middle_mcp", "middle_pip", "middle_dip", "middle_tip"],
+      "ring": ["ring_mcp", "ring_pip", "ring_dip", "ring_tip"],
+      "pinky": ["pinky_mcp", "pinky_pip", "pinky_dip", "pinky_tip"]
+    }
+  },
+  "keypoint_names": [
+    "wrist",
+    "thumb_cmc",
+    "thumb_mcp",
+    "thumb_ip",
+    "thumb_tip",
+    "index_mcp",
+    "index_pip",
+    "index_dip",
+    "index_tip",
+    "middle_mcp",
+    "middle_pip",
+    "middle_dip",
+    "middle_tip",
+    "ring_mcp",
+    "ring_pip",
+    "ring_dip",
+    "ring_tip",
+    "pinky_mcp",
+    "pinky_pip",
+    "pinky_dip",
+    "pinky_tip"
+  ],
+  "notes": "Reference photo of the user's left hand with red physical joint markings. Numeric bone lengths are not encoded in this file."
+}

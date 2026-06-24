@@ -1,0 +1,1629 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hand Model Calibrator</title>
+  <style>
+    :root {
+      --bg: #0e1115;
+      --panel: #171b21;
+      --panel-2: #20262e;
+      --panel-3: #11161c;
+      --line: #323a45;
+      --line-strong: #4a5564;
+      --text: #edf2f7;
+      --muted: #9aa7b5;
+      --muted-2: #718096;
+      --accent: #2dd4bf;
+      --amber: #f7b955;
+      --blue: #68a7ff;
+      --rose: #fb7185;
+      --good: #63d471;
+      --bad: #ff6b6b;
+      --shadow: rgba(0, 0, 0, 0.35);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 0 10px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #04221e;
+      font-weight: 700;
+    }
+
+    button.subtle {
+      background: #121821;
+      color: var(--muted);
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+
+    input,
+    select,
+    textarea {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0c1015;
+      color: var(--text);
+      padding: 0 9px;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus,
+    button:focus-visible {
+      outline: 2px solid rgba(45, 212, 191, 0.42);
+      outline-offset: 1px;
+    }
+
+    input[type="number"] {
+      width: 92px;
+      text-align: right;
+    }
+
+    input[type="range"] {
+      width: 150px;
+      min-height: auto;
+      padding: 0;
+      accent-color: var(--accent);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 116px;
+      padding: 9px;
+      resize: vertical;
+      color: #c9d5e2;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(460px, 1fr) 430px;
+      grid-template-rows: auto 1fr;
+      width: 100%;
+      height: 100%;
+      min-width: 960px;
+    }
+
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-height: 58px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #12171d;
+      box-shadow: 0 12px 28px var(--shadow);
+      z-index: 2;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      min-width: 210px;
+    }
+
+    .brand strong {
+      font-size: 17px;
+      line-height: 1.1;
+    }
+
+    .brand span {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .status-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 0 10px;
+      background: #0f141a;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .pill strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--bad);
+      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.15);
+    }
+
+    .dot.complete {
+      background: var(--good);
+      box-shadow: 0 0 0 3px rgba(99, 212, 113, 0.15);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .model-pane {
+      position: relative;
+      min-height: 0;
+      background:
+        radial-gradient(circle at 22% 18%, rgba(45, 212, 191, 0.08), transparent 30%),
+        linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(255,255,255,0.022) 1px, transparent 1px),
+        #0b0f14;
+      background-size: auto, 44px 44px, 44px 44px, auto;
+      overflow: hidden;
+    }
+
+    .viewport {
+      position: absolute;
+      inset: 0;
+    }
+
+    .viewport canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    .viewport-hud {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .view-buttons,
+    .preview-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius);
+      padding: 8px;
+      background: rgba(12, 16, 21, 0.78);
+      box-shadow: 0 10px 28px var(--shadow);
+      backdrop-filter: blur(10px);
+      pointer-events: auto;
+    }
+
+    .preview-controls {
+      align-items: center;
+    }
+
+    .preview-controls label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 204px;
+    }
+
+    .preview-controls output {
+      width: 40px;
+      color: var(--text);
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .selection-panel {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      width: min(340px, calc(100% - 28px));
+      border: 1px solid rgba(45, 212, 191, 0.5);
+      border-radius: var(--radius);
+      padding: 10px;
+      background: rgba(12, 16, 21, 0.86);
+      box-shadow: 0 12px 30px var(--shadow);
+      backdrop-filter: blur(10px);
+      pointer-events: auto;
+      z-index: 1;
+    }
+
+    .selection-panel[hidden] {
+      display: none;
+    }
+
+    .selected-bone-header {
+      display: grid;
+      gap: 2px;
+      margin-bottom: 9px;
+    }
+
+    .selected-bone-header span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-transform: uppercase;
+    }
+
+    .selected-bone-header strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .direct-length-row {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto 34px;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .direct-length-row input[type="number"] {
+      width: 100%;
+    }
+
+    .direct-length-row span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .selected-length-slider {
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .editor {
+      min-height: 0;
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      display: grid;
+      grid-template-rows: auto auto auto 1fr auto;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 122px;
+      gap: 10px;
+      padding: 12px;
+      border-bottom: 1px solid var(--line);
+      background: #151a20;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+    }
+
+    .field.wide {
+      grid-column: 1 / -1;
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+      background: #12171d;
+    }
+
+    .backup-panel {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      background: #10161d;
+      display: grid;
+      gap: 8px;
+    }
+
+    .backup-panel textarea {
+      min-height: 126px;
+    }
+
+    .tabs button {
+      min-height: 30px;
+      padding: 0 9px;
+      color: var(--muted);
+    }
+
+    .tabs button.active {
+      border-color: var(--accent);
+      background: rgba(45, 212, 191, 0.12);
+      color: var(--text);
+    }
+
+    .measurements {
+      min-height: 0;
+      overflow: auto;
+      padding: 10px 12px 12px;
+    }
+
+    .finger-section {
+      margin-bottom: 14px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0 8px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .finger-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+
+    .measure-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      min-height: 52px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel-3);
+      margin-bottom: 7px;
+      padding: 8px 9px;
+      cursor: pointer;
+    }
+
+    .measure-row:hover,
+    .measure-row.selected {
+      border-color: var(--accent);
+      background: #132027;
+    }
+
+    .measure-row.selected {
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .measure-row.invalid {
+      border-color: rgba(255, 107, 107, 0.7);
+    }
+
+    .measure-title {
+      min-width: 0;
+    }
+
+    .measure-title strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .measure-title span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted-2);
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .length-input {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .length-input span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .output-panel {
+      border-top: 1px solid var(--line);
+      padding: 12px;
+      background: #12171d;
+      display: grid;
+      gap: 8px;
+    }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .output-header strong {
+      font-size: 13px;
+    }
+
+    .output-actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .empty-note {
+      position: absolute;
+      inset: auto 18px 18px auto;
+      max-width: 360px;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      background: rgba(12, 16, 21, 0.82);
+      color: var(--muted);
+      box-shadow: 0 10px 30px var(--shadow);
+    }
+
+    @media (max-width: 980px) {
+      html,
+      body {
+        overflow: auto;
+        overflow-x: hidden;
+      }
+
+      .app {
+        min-width: 0;
+        max-width: 100vw;
+        overflow-x: hidden;
+        height: auto;
+        min-height: 100%;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto minmax(430px, 60vh) auto;
+      }
+
+      .topbar {
+        flex-wrap: wrap;
+        min-width: 0;
+        max-width: 100vw;
+      }
+
+      .status-strip {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .status-strip .pill {
+        flex: 0 0 auto;
+      }
+
+      .top-actions {
+        width: 100%;
+        max-width: 100%;
+        margin-left: 0;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .top-actions button {
+        flex: 0 0 auto;
+      }
+
+      .model-pane,
+      .viewport,
+      .editor,
+      .meta-grid,
+      .tabs,
+      .measurements,
+      .output-panel {
+        min-width: 0;
+        max-width: 100vw;
+      }
+
+      .editor {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .viewport-hud {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .view-buttons,
+      .preview-controls {
+        width: max-content;
+        max-width: 100%;
+      }
+
+      .selection-panel {
+        top: 10px;
+        left: 10px;
+        width: calc(100% - 20px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <strong>Hand Model Calibrator</strong>
+        <span>wrist plus 4 labeled digit joints per finger</span>
+      </div>
+      <div class="status-strip">
+        <span class="pill"><span id="completeDot" class="dot"></span><strong id="completeCount">0/20</strong> measured</span>
+        <span class="pill">Keypoints <strong id="keypointCount">21/21</strong></span>
+        <span class="pill">Side <strong id="sidePill">right</strong></span>
+        <span class="pill">Saved <strong id="savedAt">not yet</strong></span>
+      </div>
+      <div class="top-actions">
+        <button id="saveLocalBtn" class="subtle" type="button">Save Local</button>
+        <button id="saveFileBtn" class="primary" type="button">Save File</button>
+        <button id="exportBtn" type="button">Export</button>
+        <button id="importBtn" type="button">Import</button>
+        <button id="resetBtn" type="button">Reset</button>
+      </div>
+    </header>
+
+    <main class="model-pane">
+      <div id="viewport" class="viewport">
+        <canvas id="fallbackCanvas"></canvas>
+        <div id="emptyNote" class="empty-note" hidden>3D preview is using the built-in canvas fallback.</div>
+        <div id="selectionPanel" class="selection-panel" hidden>
+          <div class="selected-bone-header">
+            <span>Selected distance</span>
+            <strong id="selectedBoneLabel">None</strong>
+          </div>
+          <div class="direct-length-row">
+            <button id="selectedMinusBtn" type="button">-</button>
+            <input id="selectedLengthInput" type="number" min="0" step="0.1" inputmode="decimal" aria-label="Selected bone length">
+            <span>mm</span>
+            <button id="selectedPlusBtn" type="button">+</button>
+          </div>
+          <input id="selectedLengthSlider" class="selected-length-slider" type="range" min="1" max="140" step="0.1" aria-label="Selected bone length slider">
+        </div>
+        <div class="viewport-hud">
+          <div class="view-buttons">
+            <button type="button" data-view="home">Home</button>
+            <button type="button" data-view="top">Top</button>
+            <button type="button" data-view="side">Side</button>
+          </div>
+          <div class="preview-controls">
+            <label>
+              Preview curl
+              <input id="curlSlider" type="range" min="0" max="72" step="1" value="10">
+              <output id="curlValue">10</output>
+            </label>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="editor">
+      <section class="meta-grid">
+        <div class="field">
+          <label for="subjectInput">Subject</label>
+          <input id="subjectInput" type="text" autocomplete="off" placeholder="my_hand">
+        </div>
+        <div class="field">
+          <label for="sideInput">Hand Side</label>
+          <select id="sideInput">
+            <option value="right">Right</option>
+            <option value="left">Left</option>
+          </select>
+        </div>
+        <div class="field wide">
+          <label for="notesInput">Notes</label>
+          <input id="notesInput" type="text" autocomplete="off" placeholder="caliper measurements, relaxed open hand">
+        </div>
+      </section>
+
+      <section class="backup-panel">
+        <div class="output-header">
+          <strong>All Entered Measurements</strong>
+          <div class="output-actions">
+            <button id="copyMeasurementsBtn" class="subtle" type="button">Copy Measurements</button>
+          </div>
+        </div>
+        <textarea id="measurementBackup" readonly spellcheck="false"></textarea>
+      </section>
+
+      <nav id="fingerTabs" class="tabs" aria-label="Measurement filters"></nav>
+      <section id="measurementRows" class="measurements" aria-label="Bone length measurements"></section>
+
+      <section class="output-panel">
+        <div class="output-header">
+          <strong>JSON Preview</strong>
+          <div class="output-actions">
+            <button id="copyJsonBtn" class="subtle" type="button">Copy</button>
+          </div>
+        </div>
+        <textarea id="jsonPreview" readonly spellcheck="false"></textarea>
+      </section>
+    </aside>
+  </div>
+
+  <input id="importFile" type="file" accept="application/json,.json">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.149.0/three.min.js"></script>
+  <script>
+    (() => {
+      const STORAGE_KEY = "hand_model_calibrator_v1";
+      const UNIT = "mm";
+      const ACTIVE_HAND_SIDE = "left";
+      const KEYPOINT_NAMES = [
+        "wrist",
+        "thumb_cmc", "thumb_mcp", "thumb_ip", "thumb_tip",
+        "index_mcp", "index_pip", "index_dip", "index_tip",
+        "middle_mcp", "middle_pip", "middle_dip", "middle_tip",
+        "ring_mcp", "ring_pip", "ring_dip", "ring_tip",
+        "pinky_mcp", "pinky_pip", "pinky_dip", "pinky_tip"
+      ];
+
+      const FINGERS = [
+        {
+          id: "thumb",
+          label: "Thumb",
+          color: "#f7b955",
+          splayDeg: 55,
+          bones: [
+            ["wrist_thumb_cmc", "Wrist to thumb CMC", "wrist", "thumb_cmc", 42],
+            ["thumb_cmc_mcp", "Thumb CMC to MCP", "thumb_cmc", "thumb_mcp", 36],
+            ["thumb_mcp_ip", "Thumb MCP to IP", "thumb_mcp", "thumb_ip", 27],
+            ["thumb_ip_tip", "Thumb IP to tip", "thumb_ip", "thumb_tip", 23]
+          ]
+        },
+        {
+          id: "index",
+          label: "Index",
+          color: "#68a7ff",
+          splayDeg: 17,
+          bones: [
+            ["wrist_index_mcp", "Wrist to index MCP", "wrist", "index_mcp", 70],
+            ["index_mcp_pip", "Index MCP to PIP", "index_mcp", "index_pip", 42],
+            ["index_pip_dip", "Index PIP to DIP", "index_pip", "index_dip", 27],
+            ["index_dip_tip", "Index DIP to tip", "index_dip", "index_tip", 21]
+          ]
+        },
+        {
+          id: "middle",
+          label: "Middle",
+          color: "#2dd4bf",
+          splayDeg: 0,
+          bones: [
+            ["wrist_middle_mcp", "Wrist to middle MCP", "wrist", "middle_mcp", 76],
+            ["middle_mcp_pip", "Middle MCP to PIP", "middle_mcp", "middle_pip", 48],
+            ["middle_pip_dip", "Middle PIP to DIP", "middle_pip", "middle_dip", 31],
+            ["middle_dip_tip", "Middle DIP to tip", "middle_dip", "middle_tip", 24]
+          ]
+        },
+        {
+          id: "ring",
+          label: "Ring",
+          color: "#fb7185",
+          splayDeg: -13,
+          bones: [
+            ["wrist_ring_mcp", "Wrist to ring MCP", "wrist", "ring_mcp", 72],
+            ["ring_mcp_pip", "Ring MCP to PIP", "ring_mcp", "ring_pip", 45],
+            ["ring_pip_dip", "Ring PIP to DIP", "ring_pip", "ring_dip", 29],
+            ["ring_dip_tip", "Ring DIP to tip", "ring_dip", "ring_tip", 23]
+          ]
+        },
+        {
+          id: "pinky",
+          label: "Pinky",
+          color: "#a78bfa",
+          splayDeg: -27,
+          bones: [
+            ["wrist_pinky_mcp", "Wrist to pinky MCP", "wrist", "pinky_mcp", 60],
+            ["pinky_mcp_pip", "Pinky MCP to PIP", "pinky_mcp", "pinky_pip", 36],
+            ["pinky_pip_dip", "Pinky PIP to DIP", "pinky_pip", "pinky_dip", 23],
+            ["pinky_dip_tip", "Pinky DIP to tip", "pinky_dip", "pinky_tip", 18]
+          ]
+        }
+      ];
+
+      const ALL_BONES = FINGERS.flatMap((finger) => {
+        return finger.bones.map(([id, label, start, end, defaultLength]) => ({
+          id,
+          label,
+          start,
+          end,
+          defaultLength,
+          finger: finger.id,
+          fingerLabel: finger.label,
+          color: finger.color
+        }));
+      });
+      const BONE_BY_ID = new Map(ALL_BONES.map((bone) => [bone.id, bone]));
+      const BONE_BY_END = new Map(ALL_BONES.map((bone) => [bone.end, bone]));
+
+      const elements = {
+        subjectInput: document.getElementById("subjectInput"),
+        sideInput: document.getElementById("sideInput"),
+        notesInput: document.getElementById("notesInput"),
+        fingerTabs: document.getElementById("fingerTabs"),
+        measurementRows: document.getElementById("measurementRows"),
+        measurementBackup: document.getElementById("measurementBackup"),
+        jsonPreview: document.getElementById("jsonPreview"),
+        completeCount: document.getElementById("completeCount"),
+        completeDot: document.getElementById("completeDot"),
+        keypointCount: document.getElementById("keypointCount"),
+        sidePill: document.getElementById("sidePill"),
+        savedAt: document.getElementById("savedAt"),
+        saveLocalBtn: document.getElementById("saveLocalBtn"),
+        saveFileBtn: document.getElementById("saveFileBtn"),
+        exportBtn: document.getElementById("exportBtn"),
+        importBtn: document.getElementById("importBtn"),
+        resetBtn: document.getElementById("resetBtn"),
+        importFile: document.getElementById("importFile"),
+        copyMeasurementsBtn: document.getElementById("copyMeasurementsBtn"),
+        copyJsonBtn: document.getElementById("copyJsonBtn"),
+        curlSlider: document.getElementById("curlSlider"),
+        curlValue: document.getElementById("curlValue"),
+        viewport: document.getElementById("viewport"),
+        fallbackCanvas: document.getElementById("fallbackCanvas"),
+        emptyNote: document.getElementById("emptyNote"),
+        selectionPanel: document.getElementById("selectionPanel"),
+        selectedBoneLabel: document.getElementById("selectedBoneLabel"),
+        selectedLengthInput: document.getElementById("selectedLengthInput"),
+        selectedLengthSlider: document.getElementById("selectedLengthSlider"),
+        selectedMinusBtn: document.getElementById("selectedMinusBtn"),
+        selectedPlusBtn: document.getElementById("selectedPlusBtn")
+      };
+
+      let activeFinger = "all";
+      let state = loadState();
+      let selectedBoneId = "wrist_index_mcp";
+      let THREE = null;
+      let three = null;
+      let fallbackContext = null;
+
+      function defaultState() {
+        const lengths = {};
+        for (const bone of ALL_BONES) {
+          lengths[bone.id] = bone.defaultLength;
+        }
+        const now = new Date().toISOString();
+        return {
+          schema: "personal_hand_model_v1",
+          modelFamily: "metric_kinematic_landmark_template",
+          landmarkConvention: "MediaPipe_InterHand_21",
+          subject: "",
+          handSide: ACTIVE_HAND_SIDE,
+          notes: "",
+          lengths,
+          createdAt: now,
+          updatedAt: now,
+          lastSavedAt: ""
+        };
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return defaultState();
+          const parsed = JSON.parse(raw);
+          return normalizeState(parsed);
+        } catch {
+          return defaultState();
+        }
+      }
+
+      function normalizeState(input) {
+        const base = defaultState();
+        const importedLengths = input.lengths || input.bone_lengths_mm || {};
+        if (Array.isArray(input.bones)) {
+          for (const bone of input.bones) {
+            if (bone && bone.id && Number.isFinite(Number(bone.length_mm))) {
+              importedLengths[bone.id] = Number(bone.length_mm);
+            }
+          }
+        }
+
+        for (const bone of ALL_BONES) {
+          const value = Number(importedLengths[bone.id]);
+          if (Number.isFinite(value) && value > 0) {
+            base.lengths[bone.id] = value;
+          }
+        }
+
+        base.subject = String(input.subject || input.subject_id || "");
+        base.handSide = ACTIVE_HAND_SIDE;
+        base.notes = String(input.notes || "");
+        base.createdAt = String(input.createdAt || input.created_at || base.createdAt);
+        base.updatedAt = String(input.updatedAt || input.updated_at || new Date().toISOString());
+        base.lastSavedAt = String(input.lastSavedAt || "");
+        return base;
+      }
+
+      function writeState() {
+        state.updatedAt = new Date().toISOString();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        state.lastSavedAt = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function setStatus(text) {
+        elements.savedAt.textContent = text;
+      }
+
+      function formatNumber(value) {
+        const rounded = Math.round(Number(value) * 1000) / 1000;
+        return Number.isInteger(rounded) ? rounded : Number(rounded.toFixed(3));
+      }
+
+      function getLength(id) {
+        const value = Number(state.lengths[id]);
+        return Number.isFinite(value) && value > 0 ? value : 0;
+      }
+
+      function buildFlatPoints() {
+        return buildPoints(0);
+      }
+
+      function buildPoints(curlDeg) {
+        const points = { wrist: [0, 0, 0] };
+        const mirror = state.handSide === "left" ? -1 : 1;
+
+        for (const finger of FINGERS) {
+          let current = [0, 0, 0];
+          const angle = finger.splayDeg * Math.PI / 180;
+          const dirX = mirror * Math.sin(angle);
+          const dirY = Math.cos(angle);
+          const segmentCount = finger.bones.length;
+
+          finger.bones.forEach(([id, , , end], index) => {
+            const length = getLength(id);
+            const bendRatio = index === 0 ? 0 : index / Math.max(1, segmentCount - 1);
+            const bend = curlDeg * bendRatio * Math.PI / 180;
+            const planar = Math.cos(bend) * length;
+            const lift = Math.sin(bend) * length;
+            current = [
+              current[0] + dirX * planar,
+              current[1] + dirY * planar,
+              current[2] + lift
+            ];
+            points[end] = current.map(formatNumber);
+          });
+        }
+
+        return points;
+      }
+
+      function buildExport() {
+        const flatPoints = buildFlatPoints();
+        const boneLengths = {};
+        const bones = ALL_BONES.map((bone) => {
+          const length = formatNumber(getLength(bone.id));
+          boneLengths[bone.id] = length;
+          return {
+            id: bone.id,
+            finger: bone.finger,
+            start: bone.start,
+            end: bone.end,
+            length_mm: length
+          };
+        });
+
+        return {
+          schema: "personal_hand_model_v1",
+          model_family: "metric_kinematic_landmark_template",
+          landmark_convention: "MediaPipe_InterHand_21",
+          keypoint_count: KEYPOINT_NAMES.length,
+          bone_count: ALL_BONES.length,
+          related_models: {
+            annotation_landmarks: "MediaPipe/InterHand-style 21 keypoints",
+            higher_fidelity_fit_target: "MANO or UmeTrack-style hand model"
+          },
+          digit_joint_convention: {
+            description: "Wrist root plus 4 labeled digit joints per finger.",
+            digit_joint_count_per_finger: 4,
+            root_joint: "wrist",
+            digits: {
+              thumb: ["thumb_cmc", "thumb_mcp", "thumb_ip", "thumb_tip"],
+              index: ["index_mcp", "index_pip", "index_dip", "index_tip"],
+              middle: ["middle_mcp", "middle_pip", "middle_dip", "middle_tip"],
+              ring: ["ring_mcp", "ring_pip", "ring_dip", "ring_tip"],
+              pinky: ["pinky_mcp", "pinky_pip", "pinky_dip", "pinky_tip"]
+            }
+          },
+          units: UNIT,
+          subject: state.subject,
+          hand_side: state.handSide,
+          notes: state.notes,
+          coordinate_frame: {
+            origin: "wrist",
+            x_axis: state.handSide === "right" ? "thumb side" : "mirrored thumb side",
+            y_axis: "toward fingertips",
+            z_axis: "out of palm plane"
+          },
+          keypoint_names: KEYPOINT_NAMES,
+          bone_lengths_mm: boneLengths,
+          bones,
+          rest_pose_assumptions: {
+            pose: "flat_open_hand",
+            splay_degrees_from_y_axis: Object.fromEntries(FINGERS.map((finger) => [finger.id, finger.splayDeg]))
+          },
+          rest_pose_keypoints_mm: flatPoints,
+          created_at: state.createdAt,
+          updated_at: state.updatedAt
+        };
+      }
+
+      function renderTabs() {
+        const tabs = [{ id: "all", label: "All" }, ...FINGERS.map((finger) => ({ id: finger.id, label: finger.label }))];
+        elements.fingerTabs.replaceChildren(...tabs.map((tab) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = tab.label;
+          button.className = tab.id === activeFinger ? "active" : "";
+          button.addEventListener("click", () => {
+            activeFinger = tab.id;
+            render();
+          });
+          return button;
+        }));
+      }
+
+      function renderMeasurements() {
+        const visibleFingers = activeFinger === "all"
+          ? FINGERS
+          : FINGERS.filter((finger) => finger.id === activeFinger);
+
+        const sections = visibleFingers.map((finger) => {
+          const section = document.createElement("section");
+          section.className = "finger-section";
+
+          const title = document.createElement("div");
+          title.className = "section-title";
+          const swatch = document.createElement("span");
+          swatch.className = "finger-swatch";
+          swatch.style.background = finger.color;
+          const label = document.createElement("span");
+          label.textContent = finger.label;
+          title.append(swatch, label);
+          section.append(title);
+
+          for (const [id, labelText, start, end] of finger.bones) {
+            const value = state.lengths[id];
+            const row = document.createElement("div");
+            row.className = Number(value) > 0 ? "measure-row" : "measure-row invalid";
+            if (id === selectedBoneId) row.classList.add("selected");
+            row.dataset.boneRow = id;
+            row.addEventListener("click", () => selectBone(id, { switchTab: false, scroll: false }));
+
+            const titleBox = document.createElement("div");
+            titleBox.className = "measure-title";
+            const strong = document.createElement("strong");
+            strong.textContent = labelText;
+            const route = document.createElement("span");
+            route.textContent = `${start} -> ${end}`;
+            titleBox.append(strong, route);
+
+            const lengthBox = document.createElement("div");
+            lengthBox.className = "length-input";
+            const input = document.createElement("input");
+            input.type = "number";
+            input.min = "0";
+            input.step = "0.1";
+            input.inputMode = "decimal";
+            input.value = value;
+            input.dataset.boneId = id;
+            input.setAttribute("aria-label", labelText);
+            input.addEventListener("input", () => {
+              const next = Number(input.value);
+              setLengthValue(id, Number.isFinite(next) ? next : 0, { select: true });
+            });
+            const unit = document.createElement("span");
+            unit.textContent = UNIT;
+            lengthBox.append(input, unit);
+
+            row.append(titleBox, lengthBox);
+            section.append(row);
+          }
+
+          return section;
+        });
+
+        elements.measurementRows.replaceChildren(...sections);
+      }
+
+      function renderMeta() {
+        elements.subjectInput.value = state.subject;
+        elements.sideInput.value = state.handSide;
+        elements.notesInput.value = state.notes;
+        elements.sidePill.textContent = state.handSide;
+        elements.savedAt.textContent = state.lastSavedAt || "local";
+      }
+
+      function renderStatus() {
+        const measured = ALL_BONES.filter((bone) => getLength(bone.id) > 0).length;
+        elements.completeCount.textContent = `${measured}/${ALL_BONES.length}`;
+        elements.completeDot.classList.toggle("complete", measured === ALL_BONES.length);
+        elements.keypointCount.textContent = `${KEYPOINT_NAMES.length}/21`;
+      }
+
+      function renderJson() {
+        elements.jsonPreview.value = JSON.stringify(buildExport(), null, 2);
+      }
+
+      function buildMeasurementBackupText() {
+        const lines = [
+          "schema: personal_hand_model_v1",
+          "model_family: metric_kinematic_landmark_template",
+          "landmark_convention: MediaPipe_InterHand_21",
+          `hand_side: ${state.handSide}`,
+          `subject: ${state.subject || ""}`,
+          `notes: ${state.notes || ""}`,
+          `keypoint_count: ${KEYPOINT_NAMES.length}`,
+          `bone_count: ${ALL_BONES.length}`,
+          "digit_joint_count_per_finger: 4",
+          "",
+          "keypoint_names:"
+        ];
+
+        KEYPOINT_NAMES.forEach((name, index) => {
+          lines.push(`${String(index).padStart(2, "0")}. ${name}`);
+        });
+
+        lines.push("", "bone_lengths_mm:");
+        for (const bone of ALL_BONES) {
+          lines.push(`${bone.id}: ${formatNumber(getLength(bone.id))}`);
+        }
+
+        return lines.join("\n");
+      }
+
+      function renderBackup() {
+        elements.measurementBackup.value = buildMeasurementBackupText();
+      }
+
+      function renderSelectedPanel() {
+        const bone = BONE_BY_ID.get(selectedBoneId);
+        if (!bone) {
+          elements.selectionPanel.hidden = true;
+          return;
+        }
+
+        const value = formatNumber(getLength(bone.id));
+        elements.selectionPanel.hidden = false;
+        elements.selectedBoneLabel.textContent = bone.label;
+        elements.selectedLengthInput.value = value;
+        elements.selectedLengthSlider.max = String(Math.max(140, Math.ceil(value * 1.5)));
+        elements.selectedLengthSlider.value = value;
+      }
+
+      function renderModel() {
+        const curl = Number(elements.curlSlider.value) || 0;
+        elements.curlValue.textContent = String(curl);
+        if (three) {
+          updateThreeModel(curl);
+        } else {
+          drawFallback(curl);
+        }
+      }
+
+      function render() {
+        renderTabs();
+        renderMeta();
+        renderStatus();
+        renderBackup();
+        renderMeasurements();
+        renderJson();
+        renderSelectedPanel();
+        renderModel();
+      }
+
+      function refreshAfterMeasurementChange() {
+        writeState();
+        renderStatus();
+        renderBackup();
+        renderMeasurements();
+        renderJson();
+        renderSelectedPanel();
+        renderModel();
+      }
+
+      function setLengthValue(id, value, options = {}) {
+        if (!BONE_BY_ID.has(id)) return;
+        state.lengths[id] = Math.max(0, formatNumber(value));
+        if (options.select) selectedBoneId = id;
+        refreshAfterMeasurementChange();
+      }
+
+      function nudgeSelectedLength(delta) {
+        if (!selectedBoneId) return;
+        setLengthValue(selectedBoneId, getLength(selectedBoneId) + delta, { select: true });
+      }
+
+      function selectBone(id, options = {}) {
+        const bone = BONE_BY_ID.get(id);
+        if (!bone) return;
+        selectedBoneId = id;
+        if (options.switchTab !== false) activeFinger = bone.finger;
+        render();
+        if (options.scroll !== false) {
+          const row = elements.measurementRows.querySelector(`[data-bone-row="${id}"]`);
+          if (row) row.scrollIntoView({ block: "nearest" });
+        }
+      }
+
+      function toThreePoint(point) {
+        return new THREE.Vector3(point[0], point[2], -point[1]);
+      }
+
+      function makeCylinder(start, end, radius, color) {
+        const startVec = toThreePoint(start);
+        const endVec = toThreePoint(end);
+        const delta = new THREE.Vector3().subVectors(endVec, startVec);
+        const length = delta.length();
+        const geometry = new THREE.CylinderGeometry(radius, radius, length, 16, 1);
+        const material = new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.05 });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.copy(startVec).add(endVec).multiplyScalar(0.5);
+        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), delta.normalize());
+        return mesh;
+      }
+
+      function updateThreeModel(curl) {
+        const points = buildPoints(curl);
+        three.hand.clear();
+        three.pickables = [];
+
+        for (const bone of ALL_BONES) {
+          const start = points[bone.start];
+          const end = points[bone.end];
+          if (!start || !end) continue;
+          const selected = bone.id === selectedBoneId;
+          const mesh = makeCylinder(start, end, selected ? 4.0 : 2.2, selected ? "#ffffff" : bone.color);
+          mesh.userData.boneId = bone.id;
+          mesh.userData.kind = "bone";
+          three.hand.add(mesh);
+          three.pickables.push(mesh);
+        }
+
+        const jointMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f7fb, roughness: 0.55 });
+        const selectedJointMaterial = new THREE.MeshStandardMaterial({ color: 0x2dd4bf, roughness: 0.35, emissive: 0x0c4a43, emissiveIntensity: 0.55 });
+        const wristMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45 });
+        const sphereGeometry = new THREE.SphereGeometry(4.4, 24, 16);
+        const selectedSphereGeometry = new THREE.SphereGeometry(6.4, 24, 16);
+        const wristGeometry = new THREE.SphereGeometry(6.2, 24, 16);
+
+        for (const keypoint of KEYPOINT_NAMES) {
+          const point = points[keypoint];
+          if (!point) continue;
+          const incomingBone = BONE_BY_END.get(keypoint);
+          const selected = incomingBone && incomingBone.id === selectedBoneId;
+          const mesh = new THREE.Mesh(
+            keypoint === "wrist" ? wristGeometry : selected ? selectedSphereGeometry : sphereGeometry,
+            keypoint === "wrist" ? wristMaterial : selected ? selectedJointMaterial : jointMaterial
+          );
+          mesh.position.copy(toThreePoint(point));
+          three.hand.add(mesh);
+          if (incomingBone) {
+            mesh.userData.boneId = incomingBone.id;
+            mesh.userData.kind = "joint";
+            three.pickables.push(mesh);
+          }
+        }
+      }
+
+      function pickBoneId(event) {
+        if (!three || !three.pickables.length) return null;
+        const rect = three.renderer.domElement.getBoundingClientRect();
+        const pointer = new THREE.Vector2(
+          ((event.clientX - rect.left) / rect.width) * 2 - 1,
+          -(((event.clientY - rect.top) / rect.height) * 2 - 1)
+        );
+        three.raycaster.setFromCamera(pointer, three.camera);
+        const hits = three.raycaster.intersectObjects(three.pickables, false);
+        const hit = hits.find((item) => item.object.userData && item.object.userData.boneId);
+        return hit ? hit.object.userData.boneId : null;
+      }
+
+      function fitRenderer() {
+        if (!three) return;
+        const rect = elements.viewport.getBoundingClientRect();
+        const width = Math.max(1, rect.width);
+        const height = Math.max(1, rect.height);
+        three.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        three.renderer.setSize(width, height, false);
+        three.camera.aspect = width / height;
+        three.camera.updateProjectionMatrix();
+      }
+
+      function setView(name) {
+        if (!three) return;
+        if (name === "top") {
+          three.camera.position.set(0, 520, 0.01);
+        } else if (name === "side") {
+          three.camera.position.set(360, 140, -80);
+        } else {
+          three.camera.position.set(180, 250, 280);
+        }
+        three.camera.lookAt(0, 18, -95);
+      }
+
+      function animate() {
+        if (!three) return;
+        three.renderer.render(three.scene, three.camera);
+        requestAnimationFrame(animate);
+      }
+
+      function initThree(threeModule) {
+        THREE = threeModule;
+        if (!THREE) {
+          initFallback();
+          return;
+        }
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        if ("outputColorSpace" in renderer && THREE.SRGBColorSpace) {
+          renderer.outputColorSpace = THREE.SRGBColorSpace;
+        } else if ("outputEncoding" in renderer && THREE.sRGBEncoding) {
+          renderer.outputEncoding = THREE.sRGBEncoding;
+        }
+        elements.viewport.insertBefore(renderer.domElement, elements.fallbackCanvas);
+        elements.fallbackCanvas.hidden = true;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, 1, 1, 2000);
+        camera.position.set(180, 250, 280);
+        camera.lookAt(0, 18, -95);
+
+        const ambient = new THREE.HemisphereLight(0xf6fbff, 0x1d2430, 2.1);
+        scene.add(ambient);
+        const key = new THREE.DirectionalLight(0xffffff, 1.6);
+        key.position.set(120, 240, 180);
+        scene.add(key);
+        const rim = new THREE.DirectionalLight(0x7dd3fc, 0.8);
+        rim.position.set(-220, 120, -180);
+        scene.add(rim);
+
+        const grid = new THREE.GridHelper(260, 13, 0x506070, 0x27303a);
+        grid.position.z = -92;
+        scene.add(grid);
+
+        const hand = new THREE.Group();
+        hand.rotation.x = -0.15;
+        scene.add(hand);
+
+        const raycaster = new THREE.Raycaster();
+        three = { renderer, scene, camera, hand, raycaster, pickables: [] };
+        fitRenderer();
+        updateThreeModel(Number(elements.curlSlider.value) || 0);
+        animate();
+
+        let dragMode = null;
+        let lastX = 0;
+        let lastY = 0;
+
+        renderer.domElement.addEventListener("pointerdown", (event) => {
+          if (event.button !== 0) return;
+          lastX = event.clientX;
+          lastY = event.clientY;
+          const boneId = pickBoneId(event);
+          if (boneId) {
+            selectBone(boneId, { switchTab: true, scroll: true });
+            dragMode = "length";
+            renderer.domElement.style.cursor = "ns-resize";
+          } else {
+            dragMode = "rotate";
+            renderer.domElement.style.cursor = "grabbing";
+          }
+          renderer.domElement.setPointerCapture(event.pointerId);
+        });
+
+        renderer.domElement.addEventListener("pointermove", (event) => {
+          if (!dragMode) return;
+          const dx = event.clientX - lastX;
+          const dy = event.clientY - lastY;
+          lastX = event.clientX;
+          lastY = event.clientY;
+          if (dragMode === "length" && selectedBoneId) {
+            const next = getLength(selectedBoneId) + (dy * -0.28) + (dx * 0.04);
+            setLengthValue(selectedBoneId, next, { select: true });
+          } else {
+            hand.rotation.y += dx * 0.01;
+            hand.rotation.x += dy * 0.01;
+          }
+        });
+
+        renderer.domElement.addEventListener("pointerup", () => {
+          dragMode = null;
+          renderer.domElement.style.cursor = "grab";
+        });
+
+        renderer.domElement.addEventListener("wheel", (event) => {
+          event.preventDefault();
+          const scale = event.deltaY > 0 ? 1.08 : 0.92;
+          camera.position.multiplyScalar(scale);
+          camera.lookAt(0, 18, -95);
+        }, { passive: false });
+      }
+
+      function initFallback() {
+        fallbackContext = elements.fallbackCanvas.getContext("2d");
+        elements.emptyNote.hidden = false;
+        resizeFallback();
+        drawFallback(Number(elements.curlSlider.value) || 0);
+      }
+
+      function resizeFallback() {
+        const rect = elements.viewport.getBoundingClientRect();
+        const scale = window.devicePixelRatio || 1;
+        elements.fallbackCanvas.width = Math.max(1, Math.floor(rect.width * scale));
+        elements.fallbackCanvas.height = Math.max(1, Math.floor(rect.height * scale));
+        elements.fallbackCanvas.style.width = `${rect.width}px`;
+        elements.fallbackCanvas.style.height = `${rect.height}px`;
+        if (fallbackContext) fallbackContext.setTransform(scale, 0, 0, scale, 0, 0);
+      }
+
+      function projectFallback(point, width, height) {
+        const scale = Math.min(width, height) / 360;
+        return [
+          width / 2 + point[0] * scale,
+          height * 0.7 - point[1] * scale - point[2] * scale * 0.45
+        ];
+      }
+
+      function drawFallback(curl) {
+        if (!fallbackContext) return;
+        resizeFallback();
+        const ctx = fallbackContext;
+        const width = elements.fallbackCanvas.clientWidth;
+        const height = elements.fallbackCanvas.clientHeight;
+        const points = buildPoints(curl);
+        ctx.clearRect(0, 0, width, height);
+        ctx.lineCap = "round";
+
+        for (const bone of ALL_BONES) {
+          const start = points[bone.start];
+          const end = points[bone.end];
+          if (!start || !end) continue;
+          const a = projectFallback(start, width, height);
+          const b = projectFallback(end, width, height);
+          ctx.strokeStyle = bone.id === selectedBoneId ? "#ffffff" : bone.color;
+          ctx.lineWidth = bone.id === selectedBoneId ? 8 : 5;
+          ctx.beginPath();
+          ctx.moveTo(a[0], a[1]);
+          ctx.lineTo(b[0], b[1]);
+          ctx.stroke();
+        }
+
+        for (const name of KEYPOINT_NAMES) {
+          const point = points[name];
+          if (!point) continue;
+          const projected = projectFallback(point, width, height);
+          ctx.fillStyle = name === "wrist" ? "#ffffff" : "#dbe8f7";
+          ctx.beginPath();
+          ctx.arc(projected[0], projected[1], name === "wrist" ? 7 : 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      async function saveFile() {
+        const json = JSON.stringify(buildExport(), null, 2);
+        const subject = state.subject.trim() || "hand";
+        const safeSubject = subject.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "hand";
+        const suggestedName = `${safeSubject}_${state.handSide}_model.json`;
+
+        if (window.showSaveFilePicker) {
+          const handle = await window.showSaveFilePicker({
+            suggestedName,
+            types: [{
+              description: "JSON",
+              accept: { "application/json": [".json"] }
+            }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(json);
+          await writable.close();
+          setStatus("file");
+          return;
+        }
+
+        downloadJson(suggestedName, json);
+        setStatus("downloaded");
+      }
+
+      function downloadJson(filename, json) {
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function exportJson() {
+        const json = JSON.stringify(buildExport(), null, 2);
+        const subject = state.subject.trim() || "hand";
+        const safeSubject = subject.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "hand";
+        downloadJson(`${safeSubject}_${state.handSide}_model.json`, json);
+        setStatus("downloaded");
+      }
+
+      async function copyJson() {
+        const json = JSON.stringify(buildExport(), null, 2);
+        try {
+          await navigator.clipboard.writeText(json);
+          setStatus("copied");
+        } catch {
+          elements.jsonPreview.select();
+          document.execCommand("copy");
+          setStatus("copied");
+        }
+      }
+
+      function resetState() {
+        state = defaultState();
+        writeState();
+        render();
+      }
+
+      function wireEvents() {
+        elements.subjectInput.addEventListener("input", () => {
+          state.subject = elements.subjectInput.value;
+          writeState();
+          renderBackup();
+          renderJson();
+          renderMeta();
+        });
+        elements.sideInput.addEventListener("change", () => {
+          state.handSide = elements.sideInput.value;
+          writeState();
+          render();
+        });
+        elements.notesInput.addEventListener("input", () => {
+          state.notes = elements.notesInput.value;
+          writeState();
+          renderBackup();
+          renderJson();
+          renderMeta();
+        });
+        elements.curlSlider.addEventListener("input", renderModel);
+        elements.selectedLengthInput.addEventListener("input", () => {
+          if (!selectedBoneId) return;
+          const next = Number(elements.selectedLengthInput.value);
+          setLengthValue(selectedBoneId, Number.isFinite(next) ? next : 0, { select: true });
+        });
+        elements.selectedLengthSlider.addEventListener("input", () => {
+          if (!selectedBoneId) return;
+          setLengthValue(selectedBoneId, Number(elements.selectedLengthSlider.value), { select: true });
+        });
+        elements.selectedMinusBtn.addEventListener("click", () => nudgeSelectedLength(-1));
+        elements.selectedPlusBtn.addEventListener("click", () => nudgeSelectedLength(1));
+        elements.saveLocalBtn.addEventListener("click", () => {
+          writeState();
+          setStatus(state.lastSavedAt || "local");
+        });
+        elements.saveFileBtn.addEventListener("click", () => {
+          saveFile().catch(() => setStatus("not saved"));
+        });
+        elements.exportBtn.addEventListener("click", exportJson);
+        elements.importBtn.addEventListener("click", () => elements.importFile.click());
+        elements.resetBtn.addEventListener("click", resetState);
+        elements.copyMeasurementsBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(buildMeasurementBackupText());
+            setStatus("measurements copied");
+          } catch {
+            elements.measurementBackup.select();
+            document.execCommand("copy");
+            setStatus("measurements copied");
+          }
+        });
+        elements.copyJsonBtn.addEventListener("click", copyJson);
+        elements.importFile.addEventListener("change", async () => {
+          const file = elements.importFile.files && elements.importFile.files[0];
+          if (!file) return;
+          try {
+            const text = await file.text();
+            state = normalizeState(JSON.parse(text));
+            writeState();
+            render();
+          } catch {
+            setStatus("import failed");
+          } finally {
+            elements.importFile.value = "";
+          }
+        });
+        document.querySelectorAll("[data-view]").forEach((button) => {
+          button.addEventListener("click", () => setView(button.dataset.view));
+        });
+        window.addEventListener("resize", () => {
+          fitRenderer();
+          if (!three) drawFallback(Number(elements.curlSlider.value) || 0);
+        });
+      }
+
+      wireEvents();
+      initThree(window.THREE);
+      render();
+    })();
+  </script>
+</body>
+</html>

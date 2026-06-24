@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Left Hand 21-Keypoint Stereo Labeler</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f6f2;
+      color: #1f2328;
+      --zoom: 1;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; }
+    header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+    .hint { margin-top: 5px; color: #555; font-size: 13px; }
+    .toolbar, .camera-controls, .keypoints {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .toolbar { justify-content: flex-end; }
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #30363d;
+    }
+    input, select, button {
+      font: inherit;
+      border: 1px solid #c8c8c0;
+      background: #fff;
+      color: #1f2328;
+      border-radius: 6px;
+      padding: 7px 9px;
+    }
+    input[type="number"] { width: 92px; }
+    input[type="range"] { width: 180px; padding: 0; }
+    button { cursor: pointer; min-height: 34px; }
+    button.primary {
+      background: #1f6feb;
+      border-color: #1f6feb;
+      color: #fff;
+    }
+    button.active {
+      background: #111827;
+      border-color: #111827;
+      color: #fff;
+    }
+    button.done {
+      border-color: #238636;
+      box-shadow: inset 0 -3px 0 #238636;
+    }
+    .status-line {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .active-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: #fff;
+      border: 1px solid #d8d8d0;
+      border-radius: 8px;
+      padding: 9px 11px;
+    }
+    .active-name {
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .progress {
+      color: #555;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .keypoints {
+      justify-content: flex-end;
+    }
+    .keypoints button {
+      min-height: 30px;
+      padding: 5px 7px;
+      font-size: 12px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .panel {
+      min-width: 0;
+      background: #fff;
+      border: 1px solid #d8d8d0;
+      border-radius: 8px;
+      padding: 10px;
+    }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    h2 { margin: 0; font-size: 15px; letter-spacing: 0; }
+    .time-readout {
+      color: #555;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .camera-controls { margin-bottom: 8px; }
+    .stage {
+      position: relative;
+      overflow: auto;
+      height: 67vh;
+      min-height: 420px;
+      border: 1px solid #d8d8d0;
+      background: #111;
+    }
+    .video-wrap {
+      position: relative;
+      width: calc(100% * var(--zoom));
+      min-width: calc(100% * var(--zoom));
+    }
+    video {
+      display: block;
+      width: 100%;
+      height: auto;
+      user-select: none;
+      background: #000;
+    }
+    svg.overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+      z-index: 2;
+    }
+    .dot {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border: 1.5px solid #fff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 0 1.5px #111, 0 1px 6px rgba(0,0,0,.55);
+      pointer-events: none;
+      z-index: 3;
+    }
+    .dot span {
+      position: absolute;
+      left: 10px;
+      top: -13px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(0,0,0,.78);
+      color: #fff;
+      font-size: 10px;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .dot.active {
+      width: 10px;
+      height: 10px;
+      border-width: 2px;
+      box-shadow: 0 0 0 2px #111, 0 1px 8px rgba(0,0,0,.65);
+    }
+    textarea {
+      display: block;
+      width: 100%;
+      min-height: 210px;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #c8c8c0;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      resize: vertical;
+    }
+    .status {
+      margin-top: 8px;
+      min-height: 18px;
+      color: #555;
+      font-size: 13px;
+    }
+    @media (max-width: 1080px) {
+      header, .status-line { display: block; }
+      .toolbar, .keypoints {
+        justify-content: flex-start;
+        margin-top: 10px;
+      }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Left hand 21-keypoint stereo labeler</h1>
+      <div class="hint">Label the left hand only. Click the active joint in both camera views.</div>
+    </div>
+    <div class="toolbar">
+      <label>Zoom <input id="zoom" type="range" min="1" max="18" step="0.25" value="1"></label>
+      <span id="zoomValue" class="time-readout">100%</span>
+      <label><input id="autoNext" type="checkbox" checked> auto next</label>
+      <label><input id="showNames" type="checkbox"> show names</label>
+      <button id="prevPoint" type="button">Prev Joint</button>
+      <button id="nextPoint" type="button">Next Joint</button>
+      <button id="undo" type="button">Undo</button>
+      <button id="clear" type="button">Clear</button>
+      <button class="primary" id="export" type="button">Copy JSON</button>
+    </div>
+  </header>
+
+  <section class="status-line">
+    <div class="active-card">
+      <div>
+        <div class="active-name" id="activeName">0 wrist</div>
+        <div class="hint" id="activeHint">Click wrist in cam1 and cam2.</div>
+      </div>
+      <div class="progress" id="progress">0 / 42 clicks</div>
+    </div>
+    <nav class="keypoints" id="keypointButtons" aria-label="Keypoints"></nav>
+  </section>
+
+  <main class="grid">
+    <section class="panel" data-cam="cam1">
+      <div class="panel-head">
+        <h2>cam1</h2>
+        <div class="time-readout" id="cam1Readout">loading</div>
+      </div>
+      <div class="camera-controls">
+        <button type="button" data-play>Play/Pause</button>
+        <button type="button" data-step="-1">-1s</button>
+        <button type="button" data-frame="-1">-1 frame</button>
+        <label>time <input id="cam1Time" type="number" min="0" max="180" step="0.001" value="95.000"></label>
+        <button type="button" data-set>Set</button>
+        <button type="button" data-frame="1">+1 frame</button>
+        <button type="button" data-step="1">+1s</button>
+      </div>
+      <div class="stage">
+        <div class="video-wrap">
+          <video id="cam1Video" preload="metadata" muted playsinline src="../../v1-cam1/a77033-H-0001.mp4"></video>
+          <svg class="overlay" id="cam1Overlay"></svg>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" data-cam="cam2">
+      <div class="panel-head">
+        <h2>cam2</h2>
+        <div class="time-readout" id="cam2Readout">loading</div>
+      </div>
+      <div class="camera-controls">
+        <button type="button" data-play>Play/Pause</button>
+        <button type="button" data-step="-1">-1s</button>
+        <button type="button" data-frame="-1">-1 frame</button>
+        <label>time <input id="cam2Time" type="number" min="0" max="180" step="0.001" value="87.000"></label>
+        <button type="button" data-set>Set</button>
+        <button type="button" data-frame="1">+1 frame</button>
+        <button type="button" data-step="1">+1s</button>
+      </div>
+      <div class="stage">
+        <div class="video-wrap">
+          <video id="cam2Video" preload="metadata" muted playsinline src="../../v1-cam2/a72491-H-0001.mp4"></video>
+          <svg class="overlay" id="cam2Overlay"></svg>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <textarea id="output" spellcheck="false" aria-label="Exported JSON"></textarea>
+  <div class="status" id="status"></div>
+
+  <script>
+    const FRAME_RATE = 30;
+    const IMAGE_SIZE = [1920, 1080];
+    const STORAGE_KEY = "left_hand_21_stereo_labeler_v1";
+    const VIDEO_PATHS = {
+      cam1: "../../v1-cam1/a77033-H-0001.mp4",
+      cam2: "../../v1-cam2/a72491-H-0001.mp4"
+    };
+    const KEYPOINTS = [
+      "wrist",
+      "thumb_cmc", "thumb_mcp", "thumb_ip", "thumb_tip",
+      "index_mcp", "index_pip", "index_dip", "index_tip",
+      "middle_mcp", "middle_pip", "middle_dip", "middle_tip",
+      "ring_mcp", "ring_pip", "ring_dip", "ring_tip",
+      "pinky_mcp", "pinky_pip", "pinky_dip", "pinky_tip"
+    ];
+    const EDGES = [
+      [0, 1], [1, 2], [2, 3], [3, 4],
+      [0, 5], [5, 6], [6, 7], [7, 8],
+      [0, 9], [9, 10], [10, 11], [11, 12],
+      [0, 13], [13, 14], [14, 15], [15, 16],
+      [0, 17], [17, 18], [18, 19], [19, 20]
+    ];
+    const FINGER_COLOR = {
+      thumb: "#ff5c5c",
+      index: "#23a559",
+      middle: "#2f81f7",
+      ring: "#d29922",
+      pinky: "#a371f7",
+      palm: "#8b949e"
+    };
+
+    const state = {
+      activeIndex: 0,
+      clickOrder: [],
+      points: Object.fromEntries(KEYPOINTS.map(name => [name, {}]))
+    };
+
+    const panels = [...document.querySelectorAll(".panel")];
+    const output = document.querySelector("#output");
+    const status = document.querySelector("#status");
+    const zoom = document.querySelector("#zoom");
+    const zoomValue = document.querySelector("#zoomValue");
+    const activeName = document.querySelector("#activeName");
+    const activeHint = document.querySelector("#activeHint");
+    const progress = document.querySelector("#progress");
+    const autoNext = document.querySelector("#autoNext");
+    const showNames = document.querySelector("#showNames");
+    const keypointButtons = document.querySelector("#keypointButtons");
+
+    function cameraControls(cam) {
+      return {
+        panel: document.querySelector(`.panel[data-cam="${cam}"]`),
+        video: document.querySelector(`#${cam}Video`),
+        timeInput: document.querySelector(`#${cam}Time`),
+        readout: document.querySelector(`#${cam}Readout`),
+        overlay: document.querySelector(`#${cam}Overlay`)
+      };
+    }
+
+    const cameras = {
+      cam1: cameraControls("cam1"),
+      cam2: cameraControls("cam2")
+    };
+
+    function fingerForIndex(index) {
+      if (index >= 1 && index <= 4) return "thumb";
+      if (index >= 5 && index <= 8) return "index";
+      if (index >= 9 && index <= 12) return "middle";
+      if (index >= 13 && index <= 16) return "ring";
+      if (index >= 17 && index <= 20) return "pinky";
+      return "palm";
+    }
+
+    function colorForIndex(index) {
+      return FINGER_COLOR[fingerForIndex(index)];
+    }
+
+    function round2(value) {
+      return Number(value.toFixed(2));
+    }
+
+    function round3(value) {
+      return Number(value.toFixed(3));
+    }
+
+    function clampTime(video, time) {
+      const duration = Number.isFinite(video.duration) ? video.duration : 180;
+      return Math.max(0, Math.min(duration, time));
+    }
+
+    function setActiveIndex(index) {
+      state.activeIndex = Math.max(0, Math.min(KEYPOINTS.length - 1, index));
+      saveDraft();
+      render();
+    }
+
+    function seek(cam, time) {
+      const { video, timeInput } = cameras[cam];
+      const clamped = clampTime(video, time);
+      video.pause();
+      video.currentTime = clamped;
+      timeInput.value = clamped.toFixed(3);
+      updateReadout(cam);
+      saveDraft();
+    }
+
+    function updateReadout(cam) {
+      const { video, readout, timeInput } = cameras[cam];
+      const time = Number.isFinite(video.currentTime) ? video.currentTime : Number(timeInput.value);
+      const frame = Math.round(time * FRAME_RATE);
+      timeInput.value = time.toFixed(3);
+      readout.textContent = `t=${time.toFixed(3)}s | frame ${frame}`;
+      render();
+    }
+
+    function pixelFromClick(event, video) {
+      const rect = video.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * (IMAGE_SIZE[0] / rect.width);
+      const y = (event.clientY - rect.top) * (IMAGE_SIZE[1] / rect.height);
+      return [round2(x), round2(y)];
+    }
+
+    function displayPoint(xy, video) {
+      const rect = video.getBoundingClientRect();
+      return [
+        xy[0] / IMAGE_SIZE[0] * rect.width,
+        xy[1] / IMAGE_SIZE[1] * rect.height
+      ];
+    }
+
+    function exportData() {
+      const camMeta = {};
+      for (const cam of Object.keys(cameras)) {
+        const { video } = cameras[cam];
+        const time = round3(video.currentTime || Number(cameras[cam].timeInput.value) || 0);
+        camMeta[cam] = {
+          time_s: time,
+          frame_index_30fps: Math.round(time * FRAME_RATE),
+          video: VIDEO_PATHS[cam]
+        };
+      }
+      return {
+        schema: "stereo_hand21_label_v1",
+        hand_side: "left",
+        keypoint_convention: "mediapipe_21",
+        image_size: IMAGE_SIZE,
+        keypoint_names: KEYPOINTS,
+        edges: EDGES,
+        cameras: camMeta,
+        points: state.points
+      };
+    }
+
+    function labeledCount() {
+      let count = 0;
+      for (const name of KEYPOINTS) {
+        count += Number(Boolean(state.points[name].cam1));
+        count += Number(Boolean(state.points[name].cam2));
+      }
+      return count;
+    }
+
+    function completedKeypoint(name) {
+      return Boolean(state.points[name].cam1 && state.points[name].cam2);
+    }
+
+    function maybeAutoAdvance() {
+      const name = KEYPOINTS[state.activeIndex];
+      if (!autoNext.checked || !completedKeypoint(name)) return;
+      if (state.activeIndex < KEYPOINTS.length - 1) {
+        state.activeIndex += 1;
+      }
+    }
+
+    function makeSvgLine(x1, y1, x2, y2, color) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", x1);
+      line.setAttribute("y1", y1);
+      line.setAttribute("x2", x2);
+      line.setAttribute("y2", y2);
+      line.setAttribute("stroke", color);
+      line.setAttribute("stroke-width", "3");
+      line.setAttribute("stroke-linecap", "round");
+      line.setAttribute("opacity", "0.9");
+      return line;
+    }
+
+    function renderCamera(cam) {
+      const { video, overlay } = cameras[cam];
+      const wrap = video.closest(".video-wrap");
+      const rect = video.getBoundingClientRect();
+      overlay.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
+      overlay.replaceChildren();
+      wrap.querySelectorAll(".dot").forEach(el => el.remove());
+
+      for (const [a, b] of EDGES) {
+        const pa = state.points[KEYPOINTS[a]][cam];
+        const pb = state.points[KEYPOINTS[b]][cam];
+        if (!pa || !pb) continue;
+        const [x1, y1] = displayPoint(pa, video);
+        const [x2, y2] = displayPoint(pb, video);
+        overlay.appendChild(makeSvgLine(x1, y1, x2, y2, colorForIndex(b)));
+      }
+
+      KEYPOINTS.forEach((name, index) => {
+        const xy = state.points[name][cam];
+        if (!xy) return;
+        const [px, py] = displayPoint(xy, video);
+        const el = document.createElement("div");
+        el.className = `dot${index === state.activeIndex ? " active" : ""}`;
+        el.style.left = `${px}px`;
+        el.style.top = `${py}px`;
+        el.style.background = colorForIndex(index);
+        el.title = `${index} ${name}`;
+        if (showNames.checked) {
+          el.innerHTML = `<span>${index} ${name}</span>`;
+        }
+        wrap.appendChild(el);
+      });
+    }
+
+    function renderKeypointButtons() {
+      keypointButtons.replaceChildren();
+      KEYPOINTS.forEach((name, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = `${index}`;
+        button.title = name;
+        button.classList.toggle("active", index === state.activeIndex);
+        button.classList.toggle("done", completedKeypoint(name));
+        button.style.borderColor = colorForIndex(index);
+        button.addEventListener("click", () => setActiveIndex(index));
+        keypointButtons.appendChild(button);
+      });
+    }
+
+    function render() {
+      const name = KEYPOINTS[state.activeIndex];
+      activeName.textContent = `${state.activeIndex} ${name}`;
+      const missing = ["cam1", "cam2"].filter(cam => !state.points[name][cam]);
+      activeHint.textContent = missing.length ? `Need ${missing.join(" + ")}.` : "Both views labeled.";
+      progress.textContent = `${labeledCount()} / ${KEYPOINTS.length * 2} clicks`;
+      renderKeypointButtons();
+      for (const cam of Object.keys(cameras)) renderCamera(cam);
+      output.value = JSON.stringify(exportData(), null, 2);
+    }
+
+    function saveDraft() {
+      const draft = {
+        activeIndex: state.activeIndex,
+        points: state.points,
+        times: {
+          cam1: cameras.cam1.timeInput.value,
+          cam2: cameras.cam2.timeInput.value
+        },
+        autoNext: autoNext.checked,
+        showNames: showNames.checked,
+        zoom: zoom.value
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    }
+
+    function loadDraft() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        if (draft.points) {
+          for (const name of KEYPOINTS) {
+            state.points[name] = draft.points[name] || {};
+          }
+        }
+        state.activeIndex = Number.isInteger(draft.activeIndex) ? draft.activeIndex : 0;
+        if (draft.times) {
+          cameras.cam1.timeInput.value = draft.times.cam1 || cameras.cam1.timeInput.value;
+          cameras.cam2.timeInput.value = draft.times.cam2 || cameras.cam2.timeInput.value;
+        }
+        if (typeof draft.autoNext === "boolean") autoNext.checked = draft.autoNext;
+        if (typeof draft.showNames === "boolean") showNames.checked = draft.showNames;
+        if (draft.zoom) {
+          zoom.value = draft.zoom;
+          document.documentElement.style.setProperty("--zoom", String(zoom.value));
+          zoomValue.textContent = `${Math.round(Number(zoom.value) * 100)}%`;
+        }
+      } catch (_) {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+
+    panels.forEach(panel => {
+      const cam = panel.dataset.cam;
+      const controls = cameras[cam];
+      const { video, timeInput } = controls;
+
+      video.addEventListener("loadedmetadata", () => seek(cam, Number(timeInput.value)));
+      video.addEventListener("seeked", () => updateReadout(cam));
+      video.addEventListener("timeupdate", () => updateReadout(cam));
+      video.addEventListener("error", () => {
+        status.textContent = `${cam} video did not load. Tell me and I will make browser-friendly previews.`;
+      });
+
+      panel.querySelector("[data-set]").addEventListener("click", () => seek(cam, Number(timeInput.value)));
+      panel.querySelector("[data-play]").addEventListener("click", async () => {
+        if (video.paused) await video.play();
+        else video.pause();
+      });
+      timeInput.addEventListener("keydown", event => {
+        if (event.key === "Enter") seek(cam, Number(timeInput.value));
+      });
+      panel.querySelectorAll("[data-step]").forEach(button => {
+        button.addEventListener("click", () => seek(cam, video.currentTime + Number(button.dataset.step)));
+      });
+      panel.querySelectorAll("[data-frame]").forEach(button => {
+        button.addEventListener("click", () => seek(cam, video.currentTime + Number(button.dataset.frame) / FRAME_RATE));
+      });
+      panel.querySelector(".stage").addEventListener("click", event => {
+        const name = KEYPOINTS[state.activeIndex];
+        const xy = pixelFromClick(event, video);
+        const previous = state.points[name][cam] ? [...state.points[name][cam]] : null;
+        state.points[name][cam] = xy;
+        state.clickOrder.push({ point: name, cam, previous });
+        maybeAutoAdvance();
+        saveDraft();
+        render();
+      });
+    });
+
+    document.querySelector("#prevPoint").addEventListener("click", () => setActiveIndex(state.activeIndex - 1));
+    document.querySelector("#nextPoint").addEventListener("click", () => setActiveIndex(state.activeIndex + 1));
+    autoNext.addEventListener("change", saveDraft);
+    showNames.addEventListener("change", () => {
+      saveDraft();
+      render();
+    });
+    zoom.addEventListener("input", () => {
+      const value = Number(zoom.value);
+      document.documentElement.style.setProperty("--zoom", String(value));
+      zoomValue.textContent = `${Math.round(value * 100)}%`;
+      saveDraft();
+      render();
+    });
+    document.querySelector("#undo").addEventListener("click", () => {
+      const last = state.clickOrder.pop();
+      if (!last) return;
+      if (last.previous) state.points[last.point][last.cam] = last.previous;
+      else delete state.points[last.point][last.cam];
+      saveDraft();
+      render();
+    });
+    document.querySelector("#clear").addEventListener("click", () => {
+      for (const name of KEYPOINTS) state.points[name] = {};
+      state.clickOrder = [];
+      state.activeIndex = 0;
+      saveDraft();
+      render();
+    });
+    document.querySelector("#export").addEventListener("click", async () => {
+      render();
+      output.select();
+      try {
+        await navigator.clipboard.writeText(output.value);
+        status.textContent = "Copied JSON to clipboard.";
+      } catch (_) {
+        document.execCommand("copy");
+        status.textContent = "Selected JSON. Copy it if the clipboard prompt did not work.";
+      }
+    });
+    window.addEventListener("resize", render);
+
+    loadDraft();
+    render();
+  </script>
+</body>
+</html>

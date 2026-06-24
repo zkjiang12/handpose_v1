@@ -1,0 +1,233 @@
+{
+  "source_triangulation": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_cam1_69_cam2_64_labels_triangulated_hand21.json",
+  "method": "Measured model reconstructed by preserving each triangulated bone direction and replacing segment length with physical measured length.",
+  "joint_delta_mm_model_vs_triangulated": {
+    "wrist": 0.0,
+    "thumb_cmc": 1.1988592995901186,
+    "thumb_mcp": 7.162971277723973,
+    "thumb_ip": 6.398587942780148,
+    "thumb_tip": 4.010144770948503,
+    "index_mcp": 7.03790775164489,
+    "index_pip": 3.6174014492648787,
+    "index_dip": 5.205669716153471,
+    "index_tip": 8.806150363775355,
+    "middle_mcp": 15.481023272906869,
+    "middle_pip": 4.408466228132234,
+    "middle_dip": 5.509646157785469,
+    "middle_tip": 10.91684804319616,
+    "ring_mcp": 15.7016391061339,
+    "ring_pip": 6.862227032788231,
+    "ring_dip": 8.0928034454326,
+    "ring_tip": 8.65290940024003,
+    "pinky_mcp": 8.343193816114672,
+    "pinky_pip": 5.404210559779376,
+    "pinky_dip": 5.649038364375635,
+    "pinky_tip": 3.5635185763845034
+  },
+  "joint_delta_summary_mm": {
+    "mean": 6.76301031310243,
+    "median": 6.398587942780148,
+    "max": 15.7016391061339
+  },
+  "worst_joints": [
+    {
+      "joint": "ring_mcp",
+      "delta_mm": 15.7016391061339
+    },
+    {
+      "joint": "middle_mcp",
+      "delta_mm": 15.481023272906869
+    },
+    {
+      "joint": "middle_tip",
+      "delta_mm": 10.91684804319616
+    },
+    {
+      "joint": "index_tip",
+      "delta_mm": 8.806150363775355
+    },
+    {
+      "joint": "ring_tip",
+      "delta_mm": 8.65290940024003
+    },
+    {
+      "joint": "pinky_mcp",
+      "delta_mm": 8.343193816114672
+    },
+    {
+      "joint": "ring_dip",
+      "delta_mm": 8.0928034454326
+    },
+    {
+      "joint": "thumb_mcp",
+      "delta_mm": 7.162971277723973
+    }
+  ],
+  "bone_length_errors": [
+    {
+      "bone": "wrist_to_thumb_cmc",
+      "measured_mm": 52.0,
+      "triangulated_mm": 50.8011407004099,
+      "delta_mm": -1.1988592995900973,
+      "abs_delta_mm": 1.1988592995900973,
+      "percent_error": -2.3054986530578794
+    },
+    {
+      "bone": "thumb_cmc_to_thumb_mcp",
+      "measured_mm": 38.5,
+      "triangulated_mm": 32.42747806792853,
+      "delta_mm": -6.072521932071467,
+      "abs_delta_mm": 6.072521932071467,
+      "percent_error": -15.772784239146667
+    },
+    {
+      "bone": "thumb_mcp_to_thumb_ip",
+      "measured_mm": 31.5,
+      "triangulated_mm": 32.40647536999559,
+      "delta_mm": 0.9064753699955901,
+      "abs_delta_mm": 0.9064753699955901,
+      "percent_error": 2.8776995872875877
+    },
+    {
+      "bone": "thumb_ip_to_thumb_tip",
+      "measured_mm": 30.0,
+      "triangulated_mm": 33.90466126992353,
+      "delta_mm": 3.9046612699235297,
+      "abs_delta_mm": 3.9046612699235297,
+      "percent_error": 13.015537566411767
+    },
+    {
+      "bone": "wrist_to_index_mcp",
+      "measured_mm": 89.7,
+      "triangulated_mm": 96.7379077516449,
+      "delta_mm": 7.0379077516448945,
+      "abs_delta_mm": 7.0379077516448945,
+      "percent_error": 7.846051005178254
+    },
+    {
+      "bone": "index_mcp_to_index_pip",
+      "measured_mm": 39.0,
+      "triangulated_mm": 35.27311856067189,
+      "delta_mm": -3.7268814393281104,
+      "abs_delta_mm": 3.7268814393281104,
+      "percent_error": -9.556106254687464
+    },
+    {
+      "bone": "index_pip_to_index_dip",
+      "measured_mm": 16.5,
+      "triangulated_mm": 18.505703383538286,
+      "delta_mm": 2.005703383538286,
+      "abs_delta_mm": 2.005703383538286,
+      "percent_error": 12.155778082050219
+    },
+    {
+      "bone": "index_dip_to_index_tip",
+      "measured_mm": 20.0,
+      "triangulated_mm": 23.7710942772304,
+      "delta_mm": 3.7710942772304,
+      "abs_delta_mm": 3.7710942772304,
+      "percent_error": 18.855471386152
+    },
+    {
+      "bone": "wrist_to_middle_mcp",
+      "measured_mm": 84.8,
+      "triangulated_mm": 100.28102327290686,
+      "delta_mm": 15.481023272906867,
+      "abs_delta_mm": 15.481023272906867,
+      "percent_error": 18.25592367088074
+    },
+    {
+      "bone": "middle_mcp_to_middle_pip",
+      "measured_mm": 46.066,
+      "triangulated_mm": 32.52346334608753,
+      "delta_mm": -13.542536653912471,
+      "abs_delta_mm": 13.542536653912471,
+      "percent_error": -29.398117166483896
+    },
+    {
+      "bone": "middle_pip_to_middle_dip",
+      "measured_mm": 21.2,
+      "triangulated_mm": 23.296258693868737,
+      "delta_mm": 2.0962586938687373,
+      "abs_delta_mm": 2.0962586938687373,
+      "percent_error": 9.888012706928006
+    },
+    {
+      "bone": "middle_dip_to_middle_tip",
+      "measured_mm": 21.0,
+      "triangulated_mm": 26.629220227487643,
+      "delta_mm": 5.629220227487643,
+      "abs_delta_mm": 5.629220227487643,
+      "percent_error": 26.805810607084013
+    },
+    {
+      "bone": "wrist_to_ring_mcp",
+      "measured_mm": 84.2,
+      "triangulated_mm": 99.9016391061339,
+      "delta_mm": 15.701639106133896,
+      "abs_delta_mm": 15.701639106133896,
+      "percent_error": 18.648027441964246
+    },
+    {
+      "bone": "ring_mcp_to_ring_pip",
+      "measured_mm": 43.8,
+      "triangulated_mm": 30.506655230651216,
+      "delta_mm": -13.293344769348781,
+      "abs_delta_mm": 13.293344769348781,
+      "percent_error": -30.350102213125073
+    },
+    {
+      "bone": "ring_pip_to_ring_dip",
+      "measured_mm": 19.69,
+      "triangulated_mm": 22.156577847030846,
+      "delta_mm": 2.4665778470308446,
+      "abs_delta_mm": 2.4665778470308446,
+      "percent_error": 12.527058644138368
+    },
+    {
+      "bone": "ring_dip_to_ring_tip",
+      "measured_mm": 22.7,
+      "triangulated_mm": 23.628582746761698,
+      "delta_mm": 0.9285827467616983,
+      "abs_delta_mm": 0.9285827467616983,
+      "percent_error": 4.09067289322334
+    },
+    {
+      "bone": "wrist_to_pinky_mcp",
+      "measured_mm": 80.0,
+      "triangulated_mm": 88.34319381611465,
+      "delta_mm": 8.343193816114649,
+      "abs_delta_mm": 8.343193816114649,
+      "percent_error": 10.428992270143311
+    },
+    {
+      "bone": "pinky_mcp_to_pinky_pip",
+      "measured_mm": 36.8,
+      "triangulated_mm": 25.287077860945033,
+      "delta_mm": -11.512922139054965,
+      "abs_delta_mm": 11.512922139054965,
+      "percent_error": -31.285114508301536
+    },
+    {
+      "bone": "pinky_pip_to_pinky_dip",
+      "measured_mm": 15.2,
+      "triangulated_mm": 14.903970628534482,
+      "delta_mm": -0.2960293714655169,
+      "abs_delta_mm": 0.2960293714655169,
+      "percent_error": -1.9475616543784005
+    },
+    {
+      "bone": "pinky_dip_to_pinky_tip",
+      "measured_mm": 18.0,
+      "triangulated_mm": 21.01792389686301,
+      "delta_mm": 3.01792389686301,
+      "abs_delta_mm": 3.01792389686301,
+      "percent_error": 16.766243871461167
+    }
+  ],
+  "generated_files": {
+    "pose_2d_overlay": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_model_vs_triangulated_2d_pose_overlay.png",
+    "camera_overlay_full": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_model_vs_triangulated_camera_overlay.jpg",
+    "camera_overlay_zoom": "/Users/zikangjiang/dev/ego-exo/visualizations/left_hand_labeling/results/left_hand_model_vs_triangulated_camera_overlay_zoom.jpg"
+  }
+}
