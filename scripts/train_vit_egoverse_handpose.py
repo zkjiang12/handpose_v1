@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 import html
+import inspect
 import json
 import math
 import os
 import re
 import subprocess
 import sys
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 
@@ -42,6 +44,161 @@ HAND_EDGES = (
     (0, 17), (17, 18), (18, 19), (19, 20),
 )
 
+MANO_TIP_NAMES = ("thumb", "index", "middle", "ring", "pinky")
+MANO21_REMAP = (0, 13, 14, 15, 16, 1, 2, 3, 17, 4, 5, 6, 18, 10, 11, 12, 19, 7, 8, 9, 20)
+MANO_PARAM_DIM = 3 + 45 + 10 + 3
+
+
+def chumpy_compatibility_patch() -> None:
+    """Allow MANO v1.2 pickles to load with modern Python/NumPy."""
+    if not hasattr(inspect, "getargspec"):
+        inspect.getargspec = inspect.getfullargspec  # type: ignore[attr-defined]
+    aliases = {
+        "bool": bool,
+        "int": int,
+        "float": float,
+        "complex": complex,
+        "object": object,
+        "unicode": str,
+        "str": str,
+    }
+    for name, value in aliases.items():
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            missing = not hasattr(np, name)
+        if missing:
+            setattr(np, name, value)
+
+
+def import_smplx_for_mano() -> tuple[object, dict[str, int]]:
+    chumpy_compatibility_patch()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        import smplx  # type: ignore
+        from smplx.vertex_ids import vertex_ids  # type: ignore
+
+    return smplx, vertex_ids["mano"]
+
+
+def make_regression_head(
+    input_dim: int,
+    output_dim: int,
+    *,
+    head_kind: str,
+    hidden_dims: tuple[int, ...],
+    dropout: float,
+) -> nn.Module:
+    if head_kind == "linear":
+        return nn.Linear(input_dim, output_dim)
+    if head_kind == "mlp":
+        layers: list[nn.Module] = []
+        prev_dim = input_dim
+        for hidden_dim in hidden_dims:
+            layers.append(nn.Linear(prev_dim, hidden_dim))
+            layers.append(nn.GELU())
+            if dropout > 0:
+                layers.append(nn.Dropout(dropout))
+            prev_dim = hidden_dim
+        layers.append(nn.Linear(prev_dim, output_dim))
+        return nn.Sequential(*layers)
+    raise ValueError(f"Unsupported head kind: {head_kind}")
+
+
+class ManoConstrainedHead(nn.Module):
+    """Predict MANO parameters and decode them into canonical 21 hand joints."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        *,
+        head_kind: str,
+        hidden_dims: tuple[int, ...],
+        dropout: float,
+        mano_model_root: str,
+        pose_scale: float,
+        shape_scale: float,
+        orient_scale: float,
+    ):
+        super().__init__()
+        smplx, tip_vertex_ids = import_smplx_for_mano()
+        self.tip_vertex_ids = [tip_vertex_ids[name] for name in MANO_TIP_NAMES]
+        self.pose_scale = float(pose_scale)
+        self.shape_scale = float(shape_scale)
+        self.orient_scale = float(orient_scale)
+        self.param_head = make_regression_head(
+            input_dim,
+            2 * MANO_PARAM_DIM,
+            head_kind=head_kind,
+            hidden_dims=hidden_dims,
+            dropout=dropout,
+        )
+        self.left_mano = smplx.create(
+            mano_model_root,
+            model_type="mano",
+            is_rhand=False,
+            use_pca=False,
+            flat_hand_mean=True,
+            create_betas=False,
+            create_global_orient=False,
+            create_hand_pose=False,
+            create_transl=False,
+            batch_size=1,
+        )
+        self.right_mano = smplx.create(
+            mano_model_root,
+            model_type="mano",
+            is_rhand=True,
+            use_pca=False,
+            flat_hand_mean=True,
+            create_betas=False,
+            create_global_orient=False,
+            create_hand_pose=False,
+            create_transl=False,
+            batch_size=1,
+        )
+        for mano_model in (self.left_mano, self.right_mano):
+            for param in mano_model.parameters():
+                param.requires_grad = False
+
+    def _decode_hand(
+        self,
+        mano_model: nn.Module,
+        global_orient: torch.Tensor,
+        hand_pose: torch.Tensor,
+        betas: torch.Tensor,
+        transl: torch.Tensor,
+    ) -> torch.Tensor:
+        output = mano_model(
+            global_orient=global_orient,
+            hand_pose=hand_pose,
+            betas=betas,
+            transl=transl,
+            return_verts=True,
+        )
+        tips = output.vertices[:, self.tip_vertex_ids, :]
+        joints21 = torch.cat([output.joints, tips], dim=1)
+        return joints21[:, MANO21_REMAP]
+
+    def forward(self, features: torch.Tensor) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        raw = self.param_head(features).view(features.shape[0], 2, MANO_PARAM_DIM)
+        raw_global = raw[:, :, 0:3]
+        raw_pose = raw[:, :, 3:48]
+        raw_betas = raw[:, :, 48:58]
+        transl = raw[:, :, 58:61]
+        global_orient = torch.tanh(raw_global) * self.orient_scale
+        hand_pose = torch.tanh(raw_pose) * self.pose_scale
+        betas = torch.tanh(raw_betas) * self.shape_scale
+        left = self._decode_hand(self.left_mano, global_orient[:, 0], hand_pose[:, 0], betas[:, 0], transl[:, 0])
+        right = self._decode_hand(self.right_mano, global_orient[:, 1], hand_pose[:, 1], betas[:, 1], transl[:, 1])
+        joints = torch.stack([left, right], dim=1)
+        aux = {
+            "mano_global_orient": global_orient,
+            "mano_hand_pose": hand_pose,
+            "mano_betas": betas,
+            "mano_transl": transl,
+        }
+        return joints, aux
+
 
 class ViTHandPose(nn.Module):
     def __init__(
@@ -54,6 +211,10 @@ class ViTHandPose(nn.Module):
         head_type: str = "linear",
         head_hidden_dims: tuple[int, ...] = (1024, 512),
         head_dropout: float = 0.0,
+        mano_model_root: str = "models",
+        mano_pose_scale: float = 2.5,
+        mano_shape_scale: float = 3.0,
+        mano_orient_scale: float = math.pi,
     ):
         super().__init__()
         self.backbone_source = self._resolve_backbone_source(model_name, backbone_source)
@@ -66,6 +227,10 @@ class ViTHandPose(nn.Module):
             head_type=head_type,
             hidden_dims=head_hidden_dims,
             dropout=head_dropout,
+            mano_model_root=mano_model_root,
+            mano_pose_scale=mano_pose_scale,
+            mano_shape_scale=mano_shape_scale,
+            mano_orient_scale=mano_orient_scale,
         )
 
     @staticmethod
@@ -101,25 +266,46 @@ class ViTHandPose(nn.Module):
         head_type: str,
         hidden_dims: tuple[int, ...],
         dropout: float,
+        mano_model_root: str,
+        mano_pose_scale: float,
+        mano_shape_scale: float,
+        mano_orient_scale: float,
     ) -> nn.Module:
         output_dim = 2 * 21 * 3
         if head_type == "linear":
-            return nn.Linear(input_dim, output_dim)
+            return make_regression_head(
+                input_dim,
+                output_dim,
+                head_kind="linear",
+                hidden_dims=hidden_dims,
+                dropout=dropout,
+            )
         if head_type == "mlp":
-            layers: list[nn.Module] = []
-            prev_dim = input_dim
-            for hidden_dim in hidden_dims:
-                layers.append(nn.Linear(prev_dim, hidden_dim))
-                layers.append(nn.GELU())
-                if dropout > 0:
-                    layers.append(nn.Dropout(dropout))
-                prev_dim = hidden_dim
-            layers.append(nn.Linear(prev_dim, output_dim))
-            return nn.Sequential(*layers)
+            return make_regression_head(
+                input_dim,
+                output_dim,
+                head_kind="mlp",
+                hidden_dims=hidden_dims,
+                dropout=dropout,
+            )
+        if head_type in {"mano-linear", "mano-mlp"}:
+            return ManoConstrainedHead(
+                input_dim,
+                head_kind=head_type.removeprefix("mano-"),
+                hidden_dims=hidden_dims,
+                dropout=dropout,
+                mano_model_root=mano_model_root,
+                pose_scale=mano_pose_scale,
+                shape_scale=mano_shape_scale,
+                orient_scale=mano_orient_scale,
+            )
         raise ValueError(f"Unsupported head type: {head_type}")
 
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
-        return self.head(self.backbone(image)).view(-1, 2, 21, 3)
+    def forward(self, image: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]:
+        output = self.head(self.backbone(image))
+        if isinstance(output, tuple):
+            return output
+        return output.view(-1, 2, 21, 3)
 
 
 def parse_args() -> argparse.Namespace:
@@ -133,9 +319,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backbone-source", choices=("auto", "timm", "dinov3"), default="auto")
     parser.add_argument("--pretrained", action="store_true")
     parser.add_argument("--freeze-backbone", action="store_true")
-    parser.add_argument("--head-type", choices=("linear", "mlp"), default="linear")
+    parser.add_argument("--head-type", choices=("linear", "mlp", "mano-linear", "mano-mlp"), default="linear")
     parser.add_argument("--head-hidden-dims", default="1024,512", help="Comma-separated MLP hidden dims.")
     parser.add_argument("--head-dropout", type=float, default=0.0)
+    parser.add_argument("--mano-model-root", default="models", help="Root containing mano/MANO_LEFT.pkl and mano/MANO_RIGHT.pkl.")
+    parser.add_argument("--mano-pose-scale", type=float, default=2.5, help="Tanh scale for MANO hand-pose axis-angle components.")
+    parser.add_argument("--mano-shape-scale", type=float, default=3.0, help="Tanh scale for MANO shape coefficients.")
+    parser.add_argument("--mano-orient-scale", type=float, default=math.pi, help="Tanh scale for MANO global orientation components.")
+    parser.add_argument("--mano-pose-reg", type=float, default=0.0, help="L2 regularization weight for predicted MANO hand pose.")
+    parser.add_argument("--mano-shape-reg", type=float, default=0.0, help="L2 regularization weight for predicted MANO shape.")
     parser.add_argument("--image-size", type=int, default=224)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch-size", type=int, default=64)
@@ -293,6 +485,23 @@ def masked_smooth_l1(pred: torch.Tensor, target: torch.Tensor, mask: torch.Tenso
     if not torch.any(expanded):
         return pred.sum() * 0.0
     return nn.functional.smooth_l1_loss(pred[expanded], target[expanded])
+
+
+def unpack_model_output(output: torch.Tensor | tuple[torch.Tensor, dict[str, torch.Tensor]]) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    if isinstance(output, tuple):
+        return output
+    return output, {}
+
+
+def mano_regularization_loss(aux: dict[str, torch.Tensor], args: argparse.Namespace) -> torch.Tensor | None:
+    terms = []
+    if args.mano_pose_reg > 0 and "mano_hand_pose" in aux:
+        terms.append(args.mano_pose_reg * aux["mano_hand_pose"].square().mean())
+    if args.mano_shape_reg > 0 and "mano_betas" in aux:
+        terms.append(args.mano_shape_reg * aux["mano_betas"].square().mean())
+    if not terms:
+        return None
+    return torch.stack(terms).sum()
 
 
 @torch.no_grad()
@@ -978,6 +1187,7 @@ def train_one_epoch(
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
+    args: argparse.Namespace,
     *,
     epoch: int,
     max_steps: int | None,
@@ -1005,12 +1215,16 @@ def train_one_epoch(
         image = batch["image"].to(device, non_blocking=True)
         target = batch["keypoints"].to(device, non_blocking=True)
         mask = batch["valid_mask"].to(device, non_blocking=True)
-        pred = model(image)
-        loss = masked_smooth_l1(pred, target, mask)
+        pred, aux = unpack_model_output(model(image))
+        data_loss = masked_smooth_l1(pred, target, mask)
+        reg_loss = mano_regularization_loss(aux, args)
+        loss = data_loss if reg_loss is None else data_loss + reg_loss
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
         batch_loss = float(loss.detach().cpu())
+        batch_data_loss = float(data_loss.detach().cpu())
+        batch_reg_loss = float(reg_loss.detach().cpu()) if reg_loss is not None else 0.0
         batch_mpjpe = float(mpjpe_mm(pred.detach(), target, mask).cpu())
         total_loss += batch_loss
         total_mpjpe += batch_mpjpe
@@ -1028,6 +1242,8 @@ def train_one_epoch(
                 "total_steps": total_steps,
                 "loss": window_loss / max(1, window_steps),
                 "mpjpe_mm": window_mpjpe / max(1, window_steps),
+                "data_loss": batch_data_loss,
+                "reg_loss": batch_reg_loss,
                 "running_loss": total_loss / max(1, steps),
                 "running_mpjpe_mm": total_mpjpe / max(1, steps),
             }
@@ -1065,7 +1281,7 @@ def evaluate(
         image = batch["image"].to(device, non_blocking=True)
         target = batch["keypoints"].to(device, non_blocking=True)
         mask = batch["valid_mask"].to(device, non_blocking=True)
-        pred = model(image)
+        pred, _ = unpack_model_output(model(image))
         total_loss += float(masked_smooth_l1(pred, target, mask).cpu())
         total_mpjpe += float(mpjpe_mm(pred, target, mask).cpu())
         if collect_sample_metrics:
@@ -1122,6 +1338,10 @@ def main() -> None:
         head_type=args.head_type,
         head_hidden_dims=head_hidden_dims,
         head_dropout=args.head_dropout,
+        mano_model_root=args.mano_model_root,
+        mano_pose_scale=args.mano_pose_scale,
+        mano_shape_scale=args.mano_shape_scale,
+        mano_orient_scale=args.mano_orient_scale,
     ).to(device)
     if distributed:
         model = DistributedDataParallel(model, device_ids=[local_rank] if torch.cuda.is_available() else None)
@@ -1141,6 +1361,12 @@ def main() -> None:
                         "head_type": args.head_type,
                         "head_hidden_dims": args.parsed_head_hidden_dims,
                         "head_dropout": args.head_dropout,
+                        "mano_model_root": args.mano_model_root,
+                        "mano_pose_scale": args.mano_pose_scale,
+                        "mano_shape_scale": args.mano_shape_scale,
+                        "mano_orient_scale": args.mano_orient_scale,
+                        "mano_pose_reg": args.mano_pose_reg,
+                        "mano_shape_reg": args.mano_shape_reg,
                         "image_size": args.image_size,
                         "out_dir": str(out_dir),
                     },
@@ -1234,6 +1460,7 @@ def main() -> None:
             train_loader,
             optimizer,
             device,
+            args,
             epoch=epoch + 1,
             max_steps=args.max_steps,
             log_every_steps=args.log_every_steps,

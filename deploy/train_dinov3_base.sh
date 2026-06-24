@@ -10,6 +10,7 @@ OUT_DIR="${OUT_DIR:-/runs/dinov3_base_001}"
 RESUME_ARG=()
 FREEZE_ARG=()
 HEAD_ARGS=()
+MANO_ARGS=()
 
 if [ "${SETUP_EGOVERSE_SECRET:-1}" = "1" ] && [ ! -f "${HOME}/.egoverse_env" ] && [ -x "${EGOVERSE_REPO}/egomimic/utils/aws/setup_secret.sh" ]; then
   "${EGOVERSE_REPO}/egomimic/utils/aws/setup_secret.sh"
@@ -45,6 +46,15 @@ HEAD_ARGS=(
   --head-dropout "${HEAD_DROPOUT:-0.0}"
 )
 
+MANO_ARGS=(
+  --mano-model-root "${MANO_MODEL_ROOT:-models}"
+  --mano-pose-scale "${MANO_POSE_SCALE:-2.5}"
+  --mano-shape-scale "${MANO_SHAPE_SCALE:-3.0}"
+  --mano-orient-scale "${MANO_ORIENT_SCALE:-3.141592653589793}"
+  --mano-pose-reg "${MANO_POSE_REG:-0.0}"
+  --mano-shape-reg "${MANO_SHAPE_REG:-0.0}"
+)
+
 python scripts/train_vit_egoverse_handpose.py \
   --train-csv "$TRAIN_CSV" \
   --test-csv "$TEST_CSV" \
@@ -58,6 +68,7 @@ python scripts/train_vit_egoverse_handpose.py \
   --lr "${LR:-1e-4}" \
   --weight-decay "${WEIGHT_DECAY:-0.0001}" \
   "${HEAD_ARGS[@]}" \
+  "${MANO_ARGS[@]}" \
   --save-every "${SAVE_EVERY:-10}" \
   --keep-checkpoints "${KEEP_CHECKPOINTS:-1}" \
   --plot-every "${PLOT_EVERY:-1}" \
