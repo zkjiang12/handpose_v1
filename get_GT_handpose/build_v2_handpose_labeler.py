@@ -157,6 +157,7 @@ INDEX_HTML = """<!doctype html>
       </label>
       <label><input id="showLabelsToggle" type="checkbox"> Labels</label>
       <label><input id="showSkeletonToggle" type="checkbox" checked> Skeleton</label>
+      <label><input id="autoAdvanceToggle" type="checkbox"> Auto next</label>
       <button id="exportBtn">Export JSON</button>
       <button id="copyBtn">Copy</button>
     </div>
@@ -258,6 +259,9 @@ p { color: var(--muted); font-size: 13px; margin-top: 4px; }
 .activeState,
 .keypointButtons,
 .cameraControls,
+.dockTop,
+.dockCurrent,
+.dockActions,
 .outputActions {
   display: flex;
   align-items: center;
@@ -398,6 +402,76 @@ main {
   border-bottom: 1px solid var(--line);
 }
 
+.labelDock {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fbfcfd;
+  border-bottom: 1px solid var(--line);
+}
+
+.dockTop {
+  justify-content: space-between;
+}
+
+.dockCurrent {
+  min-width: 0;
+}
+
+.dockKpText {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.dockStatus {
+  min-width: 58px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.dockStatus.done {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.dockActions {
+  justify-content: flex-end;
+}
+
+.dockActions button {
+  min-height: 30px;
+}
+
+.dockKeypoints {
+  display: grid;
+  grid-template-columns: repeat(21, minmax(24px, 1fr));
+  gap: 4px;
+}
+
+.dockKeypoints button {
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.dockKeypoints button.done-left {
+  box-shadow: inset 0 -3px 0 var(--left);
+}
+
+.dockKeypoints button.done-right {
+  box-shadow: inset 0 -3px 0 var(--right);
+}
+
+.dockKeypoints button.done-current {
+  outline: 2px solid var(--active);
+  outline-offset: -2px;
+}
+
 .stage {
   position: relative;
   height: 56vh;
@@ -514,6 +588,7 @@ textarea {
   .topbar { position: static; display: block; }
   .toolbar { margin-top: 10px; }
   .videoGrid { grid-template-columns: 1fr; }
+  .dockKeypoints { grid-template-columns: repeat(7, minmax(28px, 1fr)); }
 }
 """
 
@@ -531,6 +606,7 @@ const state = {
   sessionStartS: 0,
   activeHand: "left",
   activeKp: 0,
+  autoAdvance: false,
   labels: { left: {}, right: {} },
   cameraNudges: Object.fromEntries(CAMS.map((cam) => [cam, 0])),
   trackEls: {},
@@ -622,6 +698,26 @@ function buildVideoGrid() {
         <button class="clearCamHandBtn">Clear hand in cam</button>
         <span class="nudgeText">nudge 0.000s</span>
       </div>
+      <div class="labelDock">
+        <div class="dockTop">
+          <div class="dockCurrent">
+            <label>Hand
+              <select class="dockHandSelect">
+                <option value="left">left</option>
+                <option value="right">right</option>
+              </select>
+            </label>
+            <strong class="dockKpText">0 wrist</strong>
+            <span class="dockStatus">empty</span>
+          </div>
+          <div class="dockActions">
+            <button class="dockPrevBtn" type="button">Prev</button>
+            <button class="dockNextBtn" type="button">Next</button>
+            <button class="dockClearBtn" type="button">Clear</button>
+          </div>
+        </div>
+        <div class="dockKeypoints"></div>
+      </div>
       <div class="stage">
         <div class="videoWrap">
           <video muted playsinline preload="metadata"></video>
@@ -633,6 +729,7 @@ function buildVideoGrid() {
     grid.append(card);
     const video = card.querySelector("video");
     const wrap = card.querySelector(".videoWrap");
+    const dockButtons = card.querySelector(".dockKeypoints");
 
     card.querySelector(".nudgeBackBtn").addEventListener("click", () => nudgeCamera(cam, -1 / DATA.fps));
     card.querySelector(".nudgeFwdBtn").addEventListener("click", () => nudgeCamera(cam, 1 / DATA.fps));
@@ -646,6 +743,19 @@ function buildVideoGrid() {
       cleanupLabels();
       renderAllLabels();
       updateExport();
+    });
+    card.querySelector(".dockHandSelect").addEventListener("change", (event) => setActiveHand(event.target.value));
+    card.querySelector(".dockPrevBtn").addEventListener("click", () => setActiveKp(state.activeKp - 1));
+    card.querySelector(".dockNextBtn").addEventListener("click", () => setActiveKp(state.activeKp + 1));
+    card.querySelector(".dockClearBtn").addEventListener("click", () => clearPoint(cam, state.activeHand, state.activeKp));
+    DATA.keypointNames.forEach((name, index) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.kp = String(index);
+      button.textContent = String(index);
+      button.title = keyLabel(index);
+      button.addEventListener("click", () => setActiveKp(index));
+      dockButtons.append(button);
     });
     wrap.addEventListener("click", (event) => {
       if (event.target.classList.contains("joint")) return;
@@ -664,6 +774,10 @@ function buildVideoGrid() {
       localTimeText: card.querySelector(".localTimeText"),
       countText: card.querySelector(".countText"),
       nudgeText: card.querySelector(".nudgeText"),
+      dockHandSelect: card.querySelector(".dockHandSelect"),
+      dockKpText: card.querySelector(".dockKpText"),
+      dockStatus: card.querySelector(".dockStatus"),
+      dockKeypoints: dockButtons,
     };
   }
 }
@@ -674,8 +788,10 @@ function setPoint(cam, hand, kp, x, y) {
     x: Math.round(x * 1000) / 1000,
     y: Math.round(y * 1000) / 1000,
   };
+  const shouldAdvance = state.autoAdvance && state.activeKp < DATA.keypointNames.length - 1;
   renderAllLabels();
   updateExport();
+  if (shouldAdvance) setActiveKp(state.activeKp + 1);
 }
 
 function clearPoint(cam, hand, kp) {
@@ -701,6 +817,16 @@ function setActiveKp(kp) {
   updateStatus();
 }
 
+function setActiveHand(hand) {
+  state.activeHand = HANDS.includes(hand) ? hand : "left";
+  document.getElementById("handSelect").value = state.activeHand;
+  for (const els of Object.values(state.trackEls)) {
+    if (els.dockHandSelect) els.dockHandSelect.value = state.activeHand;
+  }
+  renderAllLabels();
+  updateStatus();
+}
+
 function updateKeypointButtons() {
   const buttons = document.querySelectorAll("#keypointButtons button");
   buttons.forEach((button) => {
@@ -709,6 +835,27 @@ function updateKeypointButtons() {
     button.classList.toggle("done-left", !!state.labels.left[kp]);
     button.classList.toggle("done-right", !!state.labels.right[kp]);
   });
+  updateCameraDocks();
+}
+
+function updateCameraDocks() {
+  for (const cam of CAMS) {
+    const els = state.trackEls[cam];
+    if (!els?.dockKeypoints) continue;
+    const hasActivePoint = !!state.labels[state.activeHand][state.activeKp]?.[cam];
+    els.dockHandSelect.value = state.activeHand;
+    els.dockKpText.textContent = keyLabel(state.activeKp);
+    els.dockStatus.textContent = hasActivePoint ? "labeled" : "empty";
+    els.dockStatus.classList.toggle("done", hasActivePoint);
+    els.dockKeypoints.querySelectorAll("button").forEach((button) => {
+      const kp = Number(button.dataset.kp);
+      const doneForActiveHand = !!state.labels[state.activeHand][kp]?.[cam];
+      button.classList.toggle("active", kp === state.activeKp);
+      button.classList.toggle("done-current", doneForActiveHand);
+      button.classList.toggle("done-left", !!state.labels.left[kp]?.[cam]);
+      button.classList.toggle("done-right", !!state.labels.right[kp]?.[cam]);
+    });
+  }
 }
 
 function nudgeCamera(cam, deltaS) {
@@ -930,6 +1077,24 @@ function clearAllLabels() {
   updateExport();
 }
 
+function handleKeyboard(event) {
+  const tag = event.target?.tagName;
+  if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) return;
+  if (event.key === "[") {
+    event.preventDefault();
+    setActiveKp(state.activeKp - 1);
+  } else if (event.key === "]") {
+    event.preventDefault();
+    setActiveKp(state.activeKp + 1);
+  } else if (event.key.toLowerCase() === "l") {
+    event.preventDefault();
+    setActiveHand("left");
+  } else if (event.key.toLowerCase() === "r") {
+    event.preventDefault();
+    setActiveHand("right");
+  }
+}
+
 function setup() {
   document.body.classList.add("show-skeleton");
   buildKeypointControls();
@@ -941,9 +1106,7 @@ function setup() {
     setSessionTime(Math.min(state.sessionTime, duration()), true);
   });
   document.getElementById("handSelect").addEventListener("change", (event) => {
-    state.activeHand = event.target.value;
-    renderAllLabels();
-    updateStatus();
+    setActiveHand(event.target.value);
   });
   document.getElementById("keypointSelect").addEventListener("change", (event) => setActiveKp(event.target.value));
   document.getElementById("prevKpBtn").addEventListener("click", () => setActiveKp(state.activeKp - 1));
@@ -963,6 +1126,9 @@ function setup() {
   document.getElementById("showSkeletonToggle").addEventListener("change", (event) => {
     document.body.classList.toggle("show-skeleton", event.target.checked);
   });
+  document.getElementById("autoAdvanceToggle").addEventListener("change", (event) => {
+    state.autoAdvance = event.target.checked;
+  });
   document.getElementById("timeSlider").addEventListener("input", (event) => setSessionTime(Number(event.target.value), true));
   document.getElementById("timeInput").addEventListener("change", (event) => setSessionTime(Number(event.target.value), true));
   document.getElementById("backFrameBtn").addEventListener("click", () => setSessionTime(state.sessionTime - 1 / DATA.fps, true));
@@ -973,6 +1139,7 @@ function setup() {
   document.getElementById("copyBtn").addEventListener("click", copyExport);
   document.getElementById("loadJsonBtn").addEventListener("click", loadPastedJson);
   document.getElementById("clearAllBtn").addEventListener("click", clearAllLabels);
+  document.addEventListener("keydown", handleKeyboard);
 
   document.getElementById("timeSlider").max = String(duration());
   setActiveKp(0);
