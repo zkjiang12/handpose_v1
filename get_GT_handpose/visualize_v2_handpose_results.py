@@ -7,9 +7,28 @@ import argparse
 import json
 from pathlib import Path
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
+
+K_DEFAULT = np.array(
+    [
+        [699.19397931, 0.0, 976.75087121],
+        [0.0, 699.60395977, 565.79050329],
+        [0.0, 0.0, 1.0],
+    ],
+    dtype=np.float64,
+)
+D_DEFAULT = np.array(
+    [-0.01803320, 0.06173989, -0.05266772, 0.01903308],
+    dtype=np.float64,
+).reshape(4, 1)
+
+REPORT_BY_SEGMENT = {
+    "segment1": Path("/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/v2_calibration_and_audio_sync_report.json"),
+    "segment2": Path("/Users/zikangjiang/dev/ego-exo/visualizations/v2/take2/v2_calibration_and_audio_sync_report.json"),
+}
 
 FINGER_COLORS = {
     "thumb": "#ef4444",
@@ -26,6 +45,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("results_json", type=Path)
     parser.add_argument("--labels-json", type=Path, required=True)
     parser.add_argument("--bone-lengths-json", type=Path, required=True)
+    parser.add_argument("--calibration-report-json", type=Path)
     parser.add_argument("--hand", default="right")
     parser.add_argument("--combo", default="cam1+cam2+cam3+cam4")
     parser.add_argument(
@@ -64,6 +84,39 @@ def set_equal_3d_axes(ax: plt.Axes, points: np.ndarray, pad_mm: float = 12.0) ->
     ax.set_zlim(max(0.0, center[2] - radius), center[2] + radius)
 
 
+def world_to_z_up(xyz: np.ndarray) -> np.ndarray:
+    """Convert raw ChArUco-world xyz to a display frame where +Z is up."""
+    return np.array([xyz[0], xyz[1], -xyz[2]], dtype=float)
+
+
+def load_calibration_report(labels: dict, report_path: Path | None) -> dict:
+    if report_path is not None:
+        return json.loads(report_path.read_text())
+    segment_ids = {cam["segment_id"] for cam in labels["cameras"].values() if cam.get("segment_id")}
+    if len(segment_ids) != 1:
+        raise ValueError(f"Cannot infer one calibration report from segments: {sorted(segment_ids)}")
+    segment_id = next(iter(segment_ids))
+    return json.loads(REPORT_BY_SEGMENT[segment_id].read_text())
+
+
+def camera_center_world(rvec: np.ndarray, tvec: np.ndarray) -> np.ndarray:
+    r = cv2.Rodrigues(rvec)[0]
+    return (-r.T @ tvec.reshape(3, 1)).reshape(3)
+
+
+def camera_frustum_world(rvec: np.ndarray, tvec: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    r = cv2.Rodrigues(rvec)[0]
+    center = camera_center_world(rvec, tvec)
+    corners = np.array([[0, 0], [1919, 0], [1919, 1079], [0, 1079]], dtype=np.float64).reshape(-1, 1, 2)
+    normalized = cv2.fisheye.undistortPoints(corners, K_DEFAULT, D_DEFAULT).reshape(-1, 2)
+    dirs_cam = np.column_stack([normalized, np.ones(len(normalized))])
+    dirs_cam /= np.linalg.norm(dirs_cam, axis=1, keepdims=True)
+    dirs_world = (r.T @ dirs_cam.T).T
+    optical_axis_world = r.T @ np.array([0.0, 0.0, 1.0])
+    optical_axis_world /= np.linalg.norm(optical_axis_world)
+    return center, np.vstack([dirs_world, optical_axis_world])
+
+
 def reconstruct_gt_pose(
     tri_points: dict[str, np.ndarray],
     keypoint_names: list[str],
@@ -97,7 +150,7 @@ def reconstruct_gt_pose(
 
 def world_to_display(points: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     # World Z is negative above the ChArUco board in these extrinsics.
-    return {name: np.array([xyz[0], xyz[1], -xyz[2]], dtype=float) for name, xyz in points.items()}
+    return {name: world_to_z_up(xyz) for name, xyz in points.items()}
 
 
 def project_hand_local(
@@ -181,6 +234,131 @@ def save_3d_handpose(
     plt.close(fig)
 
 
+def save_full_3d_scene(
+    path: Path,
+    tri_points: dict[str, np.ndarray],
+    keypoint_names: list[str],
+    edges: list[list[int]],
+    labels: dict,
+    calibration_report: dict,
+    combo: str,
+) -> dict:
+    extrinsics = calibration_report["extrinsics"]
+    board = extrinsics["board"]
+    board_width = board["cols"] * board["square_mm"]
+    board_height = board["rows"] * board["square_mm"]
+    hand_display = world_to_display(tri_points)
+    hand_points = np.stack([hand_display[name] for name in keypoint_names])
+
+    fig = plt.figure(figsize=(12, 10), constrained_layout=True)
+    ax = fig.add_subplot(111, projection="3d")
+    ax.set_title(f"Full 3D scene in Z-up frame: board, cameras, and right hand ({combo})")
+
+    board_outline = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [board_width, 0.0, 0.0],
+            [board_width, board_height, 0.0],
+            [0.0, board_height, 0.0],
+            [0.0, 0.0, 0.0],
+        ]
+    )
+    ax.plot(board_outline[:, 0], board_outline[:, 1], board_outline[:, 2], color="#111827", linewidth=2.2)
+    for x in np.arange(0, board_width + 1e-6, board["square_mm"]):
+        ax.plot([x, x], [0, board_height], [0, 0], color="#d1d5db", linewidth=0.55)
+    for y in np.arange(0, board_height + 1e-6, board["square_mm"]):
+        ax.plot([0, board_width], [y, y], [0, 0], color="#d1d5db", linewidth=0.55)
+
+    ax.scatter([0], [0], [0], color="#dc2626", s=80, label="world origin")
+    ax.text(0, 0, 0, " origin", color="#dc2626", fontsize=10)
+    axis_len = 160.0
+    ax.quiver(0, 0, 0, axis_len, 0, 0, color="#ef4444", linewidth=2.3, arrow_length_ratio=0.12)
+    ax.quiver(0, 0, 0, 0, axis_len, 0, color="#22c55e", linewidth=2.3, arrow_length_ratio=0.12)
+    ax.quiver(0, 0, 0, 0, 0, axis_len, color="#2563eb", linewidth=2.3, arrow_length_ratio=0.12)
+    ax.text(axis_len, 0, 0, "+X", color="#ef4444", fontsize=11)
+    ax.text(0, axis_len, 0, "+Y", color="#22c55e", fontsize=11)
+    ax.text(0, 0, axis_len, "+Z up", color="#2563eb", fontsize=11)
+
+    camera_colors = {
+        "cam1": "#dc2626",
+        "cam2": "#2563eb",
+        "cam3": "#16a34a",
+        "cam4": "#9333ea",
+    }
+    scene_points = [board_outline, hand_points]
+    camera_report = {}
+    for cam in sorted(labels["cameras"]):
+        if cam not in extrinsics["cameras"]:
+            continue
+        info = extrinsics["cameras"][cam]
+        rvec = np.array(info["rvec_world_to_cam"], dtype=float).reshape(3, 1)
+        tvec = np.array(info["t_world_to_cam_mm"], dtype=float).reshape(3, 1)
+        center_raw, dirs_raw = camera_frustum_world(rvec, tvec)
+        center = world_to_z_up(center_raw)
+        dirs = np.array([world_to_z_up(d) for d in dirs_raw])
+        color = camera_colors.get(cam, "#64748b")
+        ax.scatter([center[0]], [center[1]], [center[2]], color=color, s=95, marker="^")
+        ax.text(center[0], center[1], center[2] + 24, cam, color=color, fontsize=10)
+
+        scale = 180.0
+        frustum_ends = center[None, :] + scale * dirs[:4]
+        optical_end = center + scale * 1.22 * dirs[4]
+        for end in frustum_ends:
+            ax.plot([center[0], end[0]], [center[1], end[1]], [center[2], end[2]], color=color, linewidth=1.0)
+        for i in range(4):
+            a = frustum_ends[i]
+            b = frustum_ends[(i + 1) % 4]
+            ax.plot([a[0], b[0]], [a[1], b[1]], [a[2], b[2]], color=color, linewidth=1.0)
+        ax.plot(
+            [center[0], optical_end[0]],
+            [center[1], optical_end[1]],
+            [center[2], optical_end[2]],
+            color=color,
+            linewidth=2.2,
+            linestyle="-",
+            alpha=0.9,
+        )
+        scene_points.extend([center.reshape(1, 3), frustum_ends, optical_end.reshape(1, 3)])
+        camera_report[cam] = {
+            "raw_world_center_mm": center_raw.tolist(),
+            "z_up_center_mm": center.tolist(),
+            "z_up_optical_axis_endpoint_mm": optical_end.tolist(),
+        }
+
+    for a, b in edges:
+        start = keypoint_names[a]
+        end = keypoint_names[b]
+        pa = hand_display[start]
+        pb = hand_display[end]
+        ax.plot(
+            [pa[0], pb[0]],
+            [pa[1], pb[1]],
+            [pa[2], pb[2]],
+            color=edge_color(a, b, keypoint_names),
+            linewidth=3.0,
+            alpha=0.98,
+        )
+    ax.scatter(hand_points[:, 0], hand_points[:, 1], hand_points[:, 2], s=34, color="#111827", label="triangulated hand")
+    wrist = hand_display["wrist"]
+    ax.scatter([wrist[0]], [wrist[1]], [wrist[2]], s=80, color="#f97316", label="wrist")
+    ax.text(wrist[0], wrist[1], wrist[2] + 18, "wrist", color="#9a3412", fontsize=10)
+
+    all_points = np.vstack(scene_points)
+    set_equal_3d_axes(ax, all_points, pad_mm=35.0)
+    ax.set_xlabel("world X (mm)")
+    ax.set_ylabel("world Y (mm)")
+    ax.set_zlabel("Z up / height above board (mm)")
+    ax.view_init(elev=24, azim=-58)
+    ax.legend(loc="upper left")
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    return {
+        "coordinate_frame": "Z-up display frame: [X, Y, Z_up] = [raw_world_X, raw_world_Y, -raw_world_Z]",
+        "board_size_mm": [board_width, board_height],
+        "cameras": camera_report,
+    }
+
+
 def save_2d_comparison(
     path: Path,
     tri_points_2d: dict[str, np.ndarray],
@@ -245,6 +423,7 @@ def main() -> None:
     results = json.loads(args.results_json.read_text())
     labels = json.loads(args.labels_json.read_text())
     gt_lengths = json.loads(args.bone_lengths_json.read_text())["bone_lengths_mm"]
+    calibration_report = load_calibration_report(labels, args.calibration_report_json)
     keypoint_names = labels["keypoint_names"]
     edges = labels["edges"]
     combo = next(c for c in results["hands"][args.hand] if c["combo"] == args.combo)
@@ -261,10 +440,20 @@ def main() -> None:
     suffix = args.combo.replace("+", "_")
     args.out_dir.mkdir(parents=True, exist_ok=True)
     hand_3d_path = args.out_dir / f"{stem}_3d_handpose_{suffix}.png"
+    full_scene_3d_path = args.out_dir / f"{stem}_full_3d_scene_z_up_{suffix}.png"
     comparison_2d_path = args.out_dir / f"{stem}_2d_pose_comparison_{suffix}.png"
     comparison_json_path = args.out_dir / f"{stem}_pose_comparison_{suffix}.json"
 
     save_3d_handpose(hand_3d_path, tri_points, keypoint_names, edges, args.combo)
+    full_scene = save_full_3d_scene(
+        full_scene_3d_path,
+        tri_points,
+        keypoint_names,
+        edges,
+        labels,
+        calibration_report,
+        args.combo,
+    )
     save_2d_comparison(comparison_2d_path, tri_2d, gt_2d, keypoint_names, edges, joint_deltas, args.combo)
 
     payload = {
@@ -274,6 +463,7 @@ def main() -> None:
         "hand": args.hand,
         "combo": args.combo,
         "method": "GT pose reconstructed by preserving each triangulated 3D bone direction and replacing each segment length with the measured right-hand GT length.",
+        "full_scene": full_scene,
         "joint_delta_mm_gt_length_pose_vs_triangulated": joint_deltas,
         "joint_delta_summary_mm": {
             "mean": float(np.mean(list(joint_deltas.values()))),
@@ -282,6 +472,7 @@ def main() -> None:
         },
         "generated_files": {
             "handpose_3d": str(hand_3d_path),
+            "full_scene_3d_z_up": str(full_scene_3d_path),
             "pose_2d_comparison": str(comparison_2d_path),
         },
     }
