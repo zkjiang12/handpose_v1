@@ -1,0 +1,31 @@
+{
+  "schema": "personal_hand_model_v1",
+  "model_family": "metric_kinematic_landmark_template",
+  "landmark_convention": "MediaPipe_InterHand_21",
+  "hand_side": "right",
+  "source": "manual measurement sketch provided 2026-06-24",
+  "units": "mm",
+  "mapping_note": "Mapped from wrist/base-to-joint segment labels in the sketch to the MediaPipe_InterHand_21 bone graph.",
+  "bone_lengths_mm": {
+    "wrist_thumb_cmc": 51,
+    "thumb_cmc_mcp": 35,
+    "thumb_mcp_ip": 30,
+    "thumb_ip_tip": 25,
+    "wrist_index_mcp": 82,
+    "index_mcp_pip": 46,
+    "index_pip_dip": 24,
+    "index_dip_tip": 20,
+    "wrist_middle_mcp": 82,
+    "middle_mcp_pip": 51,
+    "middle_pip_dip": 27,
+    "middle_dip_tip": 22,
+    "wrist_ring_mcp": 82,
+    "ring_mcp_pip": 46,
+    "ring_pip_dip": 25,
+    "ring_dip_tip": 22,
+    "wrist_pinky_mcp": 82,
+    "pinky_mcp_pip": 37,
+    "pinky_pip_dip": 21,
+    "pinky_dip_tip": 19
+  }
+}

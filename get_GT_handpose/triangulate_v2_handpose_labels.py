@@ -198,7 +198,7 @@ def save_summary_plot(path: Path, results: dict) -> None:
             items.append((hand, combo["combo"], combo["num_cameras"], combo["bone_abs_error_median_mm"]))
     if not items:
         return
-    labels = [f"{hand}\\n{combo}" for hand, combo, _, _ in items]
+    labels = [f"{hand}\n{combo}" for hand, combo, _, _ in items]
     vals = [v for _, _, _, v in items]
     colors = {2: "#2374ab", 3: "#2a9d55", 4: "#7c4dbe"}
     fig, ax = plt.subplots(figsize=(max(10, len(items) * 0.8), 6), constrained_layout=True)
