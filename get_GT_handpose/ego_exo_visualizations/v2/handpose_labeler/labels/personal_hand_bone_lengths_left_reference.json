@@ -1,0 +1,29 @@
+{
+  "schema": "personal_hand_model_v1",
+  "model_family": "metric_kinematic_landmark_template",
+  "landmark_convention": "MediaPipe_InterHand_21",
+  "hand_side_source": "left",
+  "usage_note": "Used as first-pass reference for this right-hand triangulation run; replace with right-hand measurements if available.",
+  "bone_lengths_mm": {
+    "wrist_thumb_cmc": 52,
+    "thumb_cmc_mcp": 38.5,
+    "thumb_mcp_ip": 31.5,
+    "thumb_ip_tip": 30,
+    "wrist_index_mcp": 89.7,
+    "index_mcp_pip": 39,
+    "index_pip_dip": 16.5,
+    "index_dip_tip": 20,
+    "wrist_middle_mcp": 84.8,
+    "middle_mcp_pip": 46.066,
+    "middle_pip_dip": 21.2,
+    "middle_dip_tip": 21,
+    "wrist_ring_mcp": 84.2,
+    "ring_mcp_pip": 43.8,
+    "ring_pip_dip": 19.69,
+    "ring_dip_tip": 22.7,
+    "wrist_pinky_mcp": 80,
+    "pinky_mcp_pip": 36.8,
+    "pinky_pip_dip": 15.2,
+    "pinky_dip_tip": 18
+  }
+}

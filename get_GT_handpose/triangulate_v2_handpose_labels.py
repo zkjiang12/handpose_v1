@@ -101,7 +101,13 @@ def reprojection_errors(
 
 
 def bone_name(a: int, b: int, names: list[str]) -> str:
-    return f"{names[a]}_{names[b]}"
+    start = names[a]
+    end = names[b]
+    for prefix in ("thumb", "index", "middle", "ring", "pinky"):
+        repeated = f"{prefix}_"
+        if start.startswith(repeated) and end.startswith(repeated):
+            return f"{start}_{end[len(repeated):]}"
+    return f"{start}_{end}"
 
 
 def triangulate_combo(
