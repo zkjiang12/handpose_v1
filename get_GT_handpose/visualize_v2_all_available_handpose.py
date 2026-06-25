@@ -16,6 +16,8 @@ import plotly.graph_objects as go
 
 
 EGO_EXO_ROOT = Path("/Users/zikangjiang/dev/ego-exo")
+CAMERA_IMAGE_TEXTURE_COLS = 512
+CAMERA_FRAME_JPEG_QUALITY = 97
 K_DEFAULT = np.array(
     [
         [699.19397931, 0.0, 976.75087121],
@@ -194,7 +196,7 @@ def save_camera_keypoint_overlays(
         )
         filename = f"{stem}_{cam}_raw_frame_keypoints.jpg"
         out_path = out_dir / filename
-        cv2.imwrite(str(out_path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+        cv2.imwrite(str(out_path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), CAMERA_FRAME_JPEG_QUALITY])
         out[cam] = {
             "path": str(out_path),
             "filename": filename,
@@ -308,7 +310,7 @@ def add_camera_image_plane(
     keypoint_names: list[str],
     edges: list[list[int]],
     plane_distance_mm: float = 180.0,
-    texture_cols: int = 128,
+    texture_cols: int = CAMERA_IMAGE_TEXTURE_COLS,
 ) -> None:
     image_bgr = cv2.imread(str(image_path))
     if image_bgr is None:
@@ -997,6 +999,8 @@ def save_outputs() -> None:
             "camera_combo_error_summary_plot": str(combo_png),
             "bone_error_heatmap_by_camera_combo": str(bone_combo_heatmap),
             "camera_frame_overlays": {cam: info["path"] for cam, info in camera_overlays.items()},
+            "camera_image_texture_cols": CAMERA_IMAGE_TEXTURE_COLS,
+            "camera_frame_jpeg_quality": CAMERA_FRAME_JPEG_QUALITY,
         },
     }
     summary_json.write_text(json.dumps(payload, indent=2) + "\n")

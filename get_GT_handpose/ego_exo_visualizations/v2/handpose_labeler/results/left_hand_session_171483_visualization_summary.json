@@ -19,6 +19,8 @@
       "cam2": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_cam2_raw_frame_keypoints.jpg",
       "cam3": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_cam3_raw_frame_keypoints.jpg",
       "cam4": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_cam4_raw_frame_keypoints.jpg"
-    }
+    },
+    "camera_image_texture_cols": 512,
+    "camera_frame_jpeg_quality": 97
   }
 }
