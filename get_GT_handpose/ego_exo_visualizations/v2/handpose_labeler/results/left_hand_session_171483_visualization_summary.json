@@ -12,6 +12,7 @@
     "pose_2d_comparison": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_all_available_2d_pose_comparison.png",
     "interactive_3d_scene": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_all_available_interactive_3d_scene.html",
     "camera_combo_error_summary_csv": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_camera_combo_error_summary.csv",
-    "camera_combo_error_summary_plot": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_camera_combo_error_summary.png"
+    "camera_combo_error_summary_plot": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_camera_combo_error_summary.png",
+    "bone_error_heatmap_by_camera_combo": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_bone_error_heatmap_by_camera_combo.png"
   }
 }

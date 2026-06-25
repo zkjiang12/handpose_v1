@@ -530,6 +530,69 @@ def save_combo_summary(path_png: Path, path_csv: Path, rows: list[dict], hand: s
     plt.close(fig)
 
 
+def save_bone_combo_heatmap(
+    path: Path,
+    combo_results: dict,
+    all_available: dict,
+    keypoint_names: list[str],
+    edges: list[list[int]],
+) -> None:
+    hand = all_available["hand"]
+    combos = [combo for combo in combo_results["hands"][hand] if combo["num_triangulated_keypoints"] > 0]
+    bone_names = [bone_name(a, b, keypoint_names) for a, b in edges]
+    values = np.full((len(bone_names), len(combos)), np.nan, dtype=float)
+
+    for col, combo in enumerate(combos):
+        by_bone = {
+            bone["bone"]: bone["abs_error_mm"]
+            for bone in combo["bones"]
+            if bone.get("abs_error_mm") is not None
+        }
+        for row, name in enumerate(bone_names):
+            if name in by_bone:
+                values[row, col] = float(by_bone[name])
+
+    finite = values[np.isfinite(values)]
+    vmax = max(1.0, float(np.ceil(finite.max()))) if finite.size else 1.0
+    cmap = plt.get_cmap("magma_r").copy()
+    cmap.set_bad("#e5e7eb")
+
+    fig_width = max(13.5, len(combos) * 1.2)
+    fig_height = max(8.5, len(bone_names) * 0.42)
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height), constrained_layout=True)
+    image = ax.imshow(np.ma.masked_invalid(values), cmap=cmap, vmin=0.0, vmax=vmax, aspect="auto")
+
+    xlabels = [f"{combo['combo']}\n{combo['num_triangulated_keypoints']}/21" for combo in combos]
+    ax.set_xticks(np.arange(len(combos)))
+    ax.set_xticklabels(xlabels, rotation=38, ha="right")
+    ax.set_yticks(np.arange(len(bone_names)))
+    ax.set_yticklabels(bone_names)
+    ax.set_ylabel("bone")
+    ax.set_title(
+        f"{hand.title()} Hand {float(all_available['session_time_s']):.3f}s "
+        "Absolute Bone-Length Error by Camera Combination"
+    )
+
+    ax.set_xticks(np.arange(-0.5, len(combos), 1), minor=True)
+    ax.set_yticks(np.arange(-0.5, len(bone_names), 1), minor=True)
+    ax.grid(which="minor", color="#f8fafc", linestyle="-", linewidth=1.0)
+    ax.tick_params(which="minor", bottom=False, left=False)
+
+    for row in range(values.shape[0]):
+        for col in range(values.shape[1]):
+            value = values[row, col]
+            if np.isfinite(value):
+                text_color = "white" if value > vmax * 0.55 else "#374151"
+                ax.text(col, row, f"{value:.1f}", ha="center", va="center", fontsize=8, color=text_color)
+            else:
+                ax.text(col, row, "-", ha="center", va="center", fontsize=9, color="#9ca3af")
+
+    cbar = fig.colorbar(image, ax=ax, shrink=0.92, pad=0.02)
+    cbar.set_label("absolute error (mm); gray = bone unavailable")
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+
+
 def save_outputs() -> None:
     args = parse_args()
     all_available = json.loads(args.all_available_json.read_text())
@@ -558,6 +621,7 @@ def save_outputs() -> None:
     interactive = out_dir / f"{stem}_all_available_interactive_3d_scene.html"
     combo_csv = out_dir / f"{stem}_camera_combo_error_summary.csv"
     combo_png = out_dir / f"{stem}_camera_combo_error_summary.png"
+    bone_combo_heatmap = out_dir / f"{stem}_bone_error_heatmap_by_camera_combo.png"
     summary_json = out_dir / f"{stem}_visualization_summary.json"
 
     save_2d_comparison(
@@ -574,6 +638,7 @@ def save_outputs() -> None:
     save_interactive_scene(interactive, all_available, labels, calibration_report, keypoint_names, edges)
     rows = combo_summary_rows(combo_results, all_available)
     save_combo_summary(combo_png, combo_csv, rows, all_available["hand"], float(all_available["session_time_s"]))
+    save_bone_combo_heatmap(bone_combo_heatmap, combo_results, all_available, keypoint_names, edges)
 
     payload = {
         "source_all_available": str(args.all_available_json),
@@ -590,13 +655,14 @@ def save_outputs() -> None:
             "interactive_3d_scene": str(interactive),
             "camera_combo_error_summary_csv": str(combo_csv),
             "camera_combo_error_summary_plot": str(combo_png),
+            "bone_error_heatmap_by_camera_combo": str(bone_combo_heatmap),
         },
     }
     summary_json.write_text(json.dumps(payload, indent=2) + "\n")
 
     if live_out_dir:
         live_out_dir.mkdir(parents=True, exist_ok=True)
-        for path in (comparison_2d, interactive, combo_csv, combo_png, summary_json):
+        for path in (comparison_2d, interactive, combo_csv, combo_png, bone_combo_heatmap, summary_json):
             shutil.copy2(path, live_out_dir / path.name)
 
     print(json.dumps({**payload["generated_files"], "summary_json": str(summary_json)}, indent=2))
