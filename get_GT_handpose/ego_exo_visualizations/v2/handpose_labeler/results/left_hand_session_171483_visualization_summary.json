@@ -1,0 +1,17 @@
+{
+  "source_all_available": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_all_available_triangulation.json",
+  "source_labels": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/labels/left_hand_session_171483.json",
+  "source_bone_lengths": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/labels/personal_hand_bone_lengths_left_reference.json",
+  "source_combo_results": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_triangulated_results.json",
+  "joint_delta_summary_mm": {
+    "mean": 12.536438772826779,
+    "median": 12.553748966088211,
+    "max": 23.210973104511847
+  },
+  "generated_files": {
+    "pose_2d_comparison": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_all_available_2d_pose_comparison.png",
+    "interactive_3d_scene": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_all_available_interactive_3d_scene.html",
+    "camera_combo_error_summary_csv": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_camera_combo_error_summary.csv",
+    "camera_combo_error_summary_plot": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_camera_combo_error_summary.png"
+  }
+}
