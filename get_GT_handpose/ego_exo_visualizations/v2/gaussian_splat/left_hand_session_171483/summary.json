@@ -1,0 +1,37 @@
+{
+  "out_dir": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483",
+  "num_images": 4,
+  "image_size": [
+    1920,
+    1080
+  ],
+  "undistorted_intrinsics": [
+    [
+      312.38204015914323,
+      0.0,
+      1003.6274718804733
+    ],
+    [
+      0.0,
+      312.5652089739642,
+      566.6316772468006
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "num_board_splat_points": 14241,
+  "limitations": [
+    "No trained Gaussian Splat model is produced locally because nerfstudio/gsplat/colmap are not installed.",
+    "Only four unique viewpoints are available, so true novel-view reconstruction quality will be limited.",
+    "Moving hands are dynamic foreground and should be masked/avoided for static-scene training."
+  ],
+  "files": {
+    "transforms": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/transforms.json",
+    "colmap_text": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/colmap_text",
+    "board_plane_splat_ply": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/board_plane_splat_points.ply",
+    "board_plane_splat_preview": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/board_plane_splat_preview.html"
+  }
+}

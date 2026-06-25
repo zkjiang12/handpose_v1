@@ -1,0 +1,1 @@
+# Empty sparse points. Use board_plane_splat_points.ply as optional initialization/reference geometry.
