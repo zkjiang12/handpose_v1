@@ -15,6 +15,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 
+EGO_EXO_ROOT = Path("/Users/zikangjiang/dev/ego-exo")
 K_DEFAULT = np.array(
     [
         [699.19397931, 0.0, 976.75087121],
@@ -114,6 +115,295 @@ def load_calibration_report(labels: dict) -> dict:
     if len(segment_ids) != 1:
         raise ValueError(f"Expected one segment id, got {sorted(segment_ids)}")
     return json.loads(REPORT_BY_SEGMENT[next(iter(segment_ids))].read_text())
+
+
+def draw_label(
+    image: np.ndarray,
+    text: str,
+    xy: tuple[int, int],
+    color: tuple[int, int, int],
+) -> None:
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    scale = 0.48
+    thickness = 1
+    (w, h), baseline = cv2.getTextSize(text, font, scale, thickness)
+    x, y = xy
+    x0 = max(0, min(image.shape[1] - w - 8, x + 8))
+    y0 = max(h + 6, min(image.shape[0] - 4, y - 8))
+    cv2.rectangle(image, (x0 - 3, y0 - h - 4), (x0 + w + 3, y0 + baseline + 3), (17, 24, 39), -1)
+    cv2.putText(image, text, (x0, y0), font, scale, color, thickness, cv2.LINE_AA)
+
+
+def save_camera_keypoint_overlays(
+    out_dir: Path,
+    labels: dict,
+    hand: str,
+    keypoint_names: list[str],
+    edges: list[list[int]],
+    stem: str,
+) -> dict[str, dict[str, str | float | int]]:
+    out = {}
+    colors = {
+        "left": (40, 40, 255),
+        "right": (255, 90, 30),
+    }
+    line_color = colors.get(hand, (40, 220, 255))
+    for cam, info in sorted(labels["cameras"].items()):
+        video_url = info.get("video_url")
+        if not video_url:
+            continue
+        video_path = EGO_EXO_ROOT / video_url.lstrip("/")
+        cap = cv2.VideoCapture(str(video_path))
+        if not cap.isOpened():
+            continue
+        frame_index = int(info.get("frame_index_30fps") or 0)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+        ok, frame = cap.read()
+        if not ok and info.get("local_time_s") is not None:
+            cap.set(cv2.CAP_PROP_POS_MSEC, float(info["local_time_s"]) * 1000.0)
+            ok, frame = cap.read()
+        cap.release()
+        if not ok:
+            continue
+
+        points: dict[int, tuple[int, int]] = {}
+        for kp_s, cams in labels["hands"].get(hand, {}).items():
+            if cam not in cams:
+                continue
+            x, y = cams[cam]
+            points[int(kp_s)] = (int(round(x)), int(round(y)))
+
+        for a, b in edges:
+            if a not in points or b not in points:
+                continue
+            cv2.line(frame, points[a], points[b], line_color, 3, cv2.LINE_AA)
+        for idx, point in points.items():
+            cv2.circle(frame, point, 7, (255, 255, 255), -1, cv2.LINE_AA)
+            cv2.circle(frame, point, 4, line_color, -1, cv2.LINE_AA)
+            draw_label(frame, f"{idx} {keypoint_names[idx]}", point, (255, 255, 255))
+
+        cv2.putText(
+            frame,
+            f"{cam} | local {float(info.get('local_time_s') or 0.0):.3f}s | frame {frame_index}",
+            (24, 42),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.9,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+        filename = f"{stem}_{cam}_raw_frame_keypoints.jpg"
+        out_path = out_dir / filename
+        cv2.imwrite(str(out_path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
+        out[cam] = {
+            "path": str(out_path),
+            "filename": filename,
+            "local_time_s": float(info.get("local_time_s") or 0.0),
+            "frame_index_30fps": frame_index,
+            "num_keypoints": len(points),
+        }
+    return out
+
+
+def bgr_to_hex(rgb: np.ndarray) -> str:
+    r, g, b = [int(v) for v in rgb]
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def camera_plane_points(
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    uv: np.ndarray,
+    plane_distance_mm: float,
+) -> np.ndarray:
+    r = cv2.Rodrigues(rvec)[0]
+    uv_arr = np.asarray(uv, dtype=np.float64).reshape(-1, 1, 2)
+    xy = cv2.fisheye.undistortPoints(uv_arr, K_DEFAULT, D_DEFAULT).reshape(-1, 2)
+    pts_cam = np.column_stack(
+        [
+            xy[:, 0] * plane_distance_mm,
+            xy[:, 1] * plane_distance_mm,
+            np.full(len(xy), plane_distance_mm),
+        ]
+    )
+    pts_world = (r.T @ (pts_cam.T - tvec.reshape(3, 1))).T
+    return np.stack([world_to_z_up(point) for point in pts_world])
+
+
+def camera_ray_display(
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    uv: list[float] | tuple[float, float] | np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    r = cv2.Rodrigues(rvec)[0]
+    xy = cv2.fisheye.undistortPoints(np.asarray(uv, dtype=np.float64).reshape(1, 1, 2), K_DEFAULT, D_DEFAULT).reshape(2)
+    direction_cam = np.array([xy[0], xy[1], 1.0], dtype=float)
+    direction_cam /= np.linalg.norm(direction_cam)
+    direction_world = r.T @ direction_cam
+    direction_display = world_to_z_up(direction_world)
+    direction_display /= np.linalg.norm(direction_display)
+    return world_to_z_up(camera_center_world(rvec, tvec)), direction_display
+
+
+def add_keypoint_rays(
+    fig: go.Figure,
+    labels: dict,
+    all_available: dict,
+    hand: str,
+    cam: str,
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    keypoint_names: list[str],
+    color: str,
+) -> None:
+    tri_points = {
+        name: world_to_z_up(np.array(xyz, dtype=float))
+        for name, xyz in all_available["points_mm"].items()
+    }
+    first_ray_for_camera = True
+    for kp_s, cams in sorted(labels["hands"].get(hand, {}).items(), key=lambda item: int(item[0])):
+        if cam not in cams:
+            continue
+        kp_index = int(kp_s)
+        kp_name = keypoint_names[kp_index]
+        origin, direction = camera_ray_display(rvec, tvec, cams[cam])
+        target = tri_points.get(kp_name)
+        if target is not None:
+            depth = float(np.dot(target - origin, direction))
+            if depth <= 0:
+                depth = 900.0
+            end = origin + direction * max(240.0, depth * 1.08)
+            closest = origin + direction * depth
+            miss_mm = float(np.linalg.norm(closest - target))
+            hover = f"{cam} ray for {kp_index} {kp_name}<br>ray-to-3D residual: {miss_mm:.1f} mm"
+        else:
+            end = origin + direction * 900.0
+            hover = f"{cam} ray for {kp_index} {kp_name}<br>no triangulated 3D joint"
+        fig.add_trace(
+            go.Scatter3d(
+                x=[origin[0], end[0]],
+                y=[origin[1], end[1]],
+                z=[origin[2], end[2]],
+                mode="lines",
+                line={"color": color, "width": 2},
+                opacity=0.34,
+                hovertext=[hover, hover],
+                hoverinfo="text",
+                legendgroup=f"{cam}-rays",
+                name=f"{cam} keypoint rays",
+                showlegend=first_ray_for_camera,
+            )
+        )
+        first_ray_for_camera = False
+
+
+def add_camera_image_plane(
+    fig: go.Figure,
+    image_path: Path,
+    labels: dict,
+    hand: str,
+    cam: str,
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    keypoint_names: list[str],
+    edges: list[list[int]],
+    plane_distance_mm: float = 180.0,
+    texture_cols: int = 128,
+) -> None:
+    image_bgr = cv2.imread(str(image_path))
+    if image_bgr is None:
+        return
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    height, width = image_rgb.shape[:2]
+    texture_rows = max(2, int(round(texture_cols * height / width)))
+    texture = cv2.resize(image_rgb, (texture_cols, texture_rows), interpolation=cv2.INTER_AREA)
+
+    xs = np.linspace(0, width - 1, texture_cols)
+    ys = np.linspace(0, height - 1, texture_rows)
+    grid_x, grid_y = np.meshgrid(xs, ys)
+    uv_grid = np.column_stack([grid_x.ravel(), grid_y.ravel()])
+    pts = camera_plane_points(rvec, tvec, uv_grid, plane_distance_mm)
+
+    i_idx: list[int] = []
+    j_idx: list[int] = []
+    k_idx: list[int] = []
+    face_colors: list[str] = []
+    for row in range(texture_rows - 1):
+        for col in range(texture_cols - 1):
+            v00 = row * texture_cols + col
+            v01 = v00 + 1
+            v10 = (row + 1) * texture_cols + col
+            v11 = v10 + 1
+            color = bgr_to_hex(texture[row, col])
+            i_idx.extend([v00, v00])
+            j_idx.extend([v10, v11])
+            k_idx.extend([v11, v01])
+            face_colors.extend([color, color])
+
+    fig.add_trace(
+        go.Mesh3d(
+            x=pts[:, 0],
+            y=pts[:, 1],
+            z=pts[:, 2],
+            i=i_idx,
+            j=j_idx,
+            k=k_idx,
+            facecolor=face_colors,
+            flatshading=True,
+            lighting={"ambient": 1.0, "diffuse": 0.0, "specular": 0.0, "roughness": 1.0},
+            hoverinfo="skip",
+            opacity=0.92,
+            name=f"{cam} raw frame",
+            showlegend=False,
+        )
+    )
+
+    kp_uv = []
+    kp_names = []
+    kp_indices = []
+    for kp_s, cams in labels["hands"].get(hand, {}).items():
+        if cam not in cams:
+            continue
+        kp_indices.append(int(kp_s))
+        kp_names.append(keypoint_names[int(kp_s)])
+        kp_uv.append(cams[cam])
+    if not kp_uv:
+        return
+
+    kp_pts = camera_plane_points(rvec, tvec, np.array(kp_uv, dtype=np.float64), plane_distance_mm * 0.992)
+    by_index = {idx: kp_pts[pos] for pos, idx in enumerate(kp_indices)}
+    for a, b in edges:
+        if a not in by_index or b not in by_index:
+            continue
+        pa = by_index[a]
+        pb = by_index[b]
+        fig.add_trace(
+            go.Scatter3d(
+                x=[pa[0], pb[0]],
+                y=[pa[1], pb[1]],
+                z=[pa[2], pb[2]],
+                mode="lines",
+                line={"color": "#facc15", "width": 6},
+                hoverinfo="skip",
+                showlegend=False,
+            )
+        )
+    fig.add_trace(
+        go.Scatter3d(
+            x=kp_pts[:, 0],
+            y=kp_pts[:, 1],
+            z=kp_pts[:, 2],
+            mode="markers+text",
+            marker={"size": 4, "color": "#ffffff", "line": {"color": "#111827", "width": 1}},
+            text=[f"{idx} {name}" for idx, name in zip(kp_indices, kp_names)],
+            textfont={"size": 10, "color": "#ffffff"},
+            textposition="top center",
+            hovertext=[f"{cam} {idx} {name}" for idx, name in zip(kp_indices, kp_names)],
+            hoverinfo="text",
+            name=f"{cam} 2D labels",
+            showlegend=False,
+        )
+    )
 
 
 def reconstruct_gt_partial(
@@ -249,6 +539,7 @@ def save_interactive_scene(
     calibration_report: dict,
     keypoint_names: list[str],
     edges: list[list[int]],
+    camera_overlays: dict[str, dict[str, str | float | int]],
 ) -> None:
     hand = all_available["hand"]
     tri_points = {name: np.array(xyz, dtype=float) for name, xyz in all_available["points_mm"].items()}
@@ -320,7 +611,6 @@ def save_interactive_scene(
         dirs = np.array([world_to_z_up(d) for d in dirs_raw])
         color = camera_colors.get(cam, "#64748b")
         scale = 180.0
-        frustum = center[None, :] + scale * dirs[:4]
         optical_end = center + scale * 1.25 * dirs[4]
         fig.add_trace(
             go.Scatter3d(
@@ -335,32 +625,6 @@ def save_interactive_scene(
                 name=cam,
             )
         )
-        for end in frustum:
-            fig.add_trace(
-                go.Scatter3d(
-                    x=[center[0], end[0]],
-                    y=[center[1], end[1]],
-                    z=[center[2], end[2]],
-                    mode="lines",
-                    line={"color": color, "width": 2},
-                    hoverinfo="skip",
-                    showlegend=False,
-                )
-            )
-        for i in range(4):
-            a = frustum[i]
-            b = frustum[(i + 1) % 4]
-            fig.add_trace(
-                go.Scatter3d(
-                    x=[a[0], b[0]],
-                    y=[a[1], b[1]],
-                    z=[a[2], b[2]],
-                    mode="lines",
-                    line={"color": color, "width": 2},
-                    hoverinfo="skip",
-                    showlegend=False,
-                )
-            )
         fig.add_trace(
             go.Scatter3d(
                 x=[center[0], optical_end[0]],
@@ -371,6 +635,30 @@ def save_interactive_scene(
                 hoverinfo="skip",
                 showlegend=False,
             )
+        )
+        overlay = camera_overlays.get(cam)
+        if overlay:
+            add_camera_image_plane(
+                fig,
+                Path(str(overlay["path"])),
+                labels,
+                hand,
+                cam,
+                rvec,
+                tvec,
+                keypoint_names,
+                edges,
+            )
+        add_keypoint_rays(
+            fig,
+            labels,
+            all_available,
+            hand,
+            cam,
+            rvec,
+            tvec,
+            keypoint_names,
+            color,
         )
 
     axis_origin = np.array([0.0, 0.0, 0.0])
@@ -403,8 +691,7 @@ def save_interactive_scene(
     }
     fig.update_layout(
         title=f"{hand.title()} hand session {all_available['session_time_s']:.3f}s: interactive 3D scene",
-        width=1150,
-        height=900,
+        autosize=True,
         margin={"l": 0, "r": 0, "b": 0, "t": 70},
         paper_bgcolor="#f8fafc",
         scene={
@@ -439,7 +726,44 @@ def save_interactive_scene(
             }
         ],
     )
-    fig.write_html(str(path), include_plotlyjs="cdn", full_html=True)
+    plot_html = fig.to_html(
+        include_plotlyjs="cdn",
+        full_html=False,
+        config={"responsive": True},
+        default_width="100%",
+        default_height="100%",
+    )
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{hand.title()} hand session {all_available['session_time_s']:.3f}s</title>
+  <style>
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: #f8fafc;
+      color: #172033;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }}
+    .scene {{
+      min-height: 100vh;
+      overflow: hidden;
+    }}
+    .scene .plotly-graph-div {{
+      width: 100vw !important;
+      height: 100vh !important;
+    }}
+  </style>
+</head>
+<body>
+  <main class="scene">{plot_html}</main>
+</body>
+</html>
+"""
+    path.write_text(html)
 
 
 def combo_summary_rows(combo_results: dict, all_available: dict) -> list[dict]:
@@ -623,6 +947,14 @@ def save_outputs() -> None:
     combo_png = out_dir / f"{stem}_camera_combo_error_summary.png"
     bone_combo_heatmap = out_dir / f"{stem}_bone_error_heatmap_by_camera_combo.png"
     summary_json = out_dir / f"{stem}_visualization_summary.json"
+    camera_overlays = save_camera_keypoint_overlays(
+        out_dir,
+        labels,
+        all_available["hand"],
+        keypoint_names,
+        edges,
+        stem,
+    )
 
     save_2d_comparison(
         comparison_2d,
@@ -635,7 +967,15 @@ def save_outputs() -> None:
         float(all_available["session_time_s"]),
         all_available["missing_keypoints"],
     )
-    save_interactive_scene(interactive, all_available, labels, calibration_report, keypoint_names, edges)
+    save_interactive_scene(
+        interactive,
+        all_available,
+        labels,
+        calibration_report,
+        keypoint_names,
+        edges,
+        camera_overlays,
+    )
     rows = combo_summary_rows(combo_results, all_available)
     save_combo_summary(combo_png, combo_csv, rows, all_available["hand"], float(all_available["session_time_s"]))
     save_bone_combo_heatmap(bone_combo_heatmap, combo_results, all_available, keypoint_names, edges)
@@ -656,6 +996,7 @@ def save_outputs() -> None:
             "camera_combo_error_summary_csv": str(combo_csv),
             "camera_combo_error_summary_plot": str(combo_png),
             "bone_error_heatmap_by_camera_combo": str(bone_combo_heatmap),
+            "camera_frame_overlays": {cam: info["path"] for cam, info in camera_overlays.items()},
         },
     }
     summary_json.write_text(json.dumps(payload, indent=2) + "\n")
@@ -664,6 +1005,9 @@ def save_outputs() -> None:
         live_out_dir.mkdir(parents=True, exist_ok=True)
         for path in (comparison_2d, interactive, combo_csv, combo_png, bone_combo_heatmap, summary_json):
             shutil.copy2(path, live_out_dir / path.name)
+        for info in camera_overlays.values():
+            overlay_path = Path(str(info["path"]))
+            shutil.copy2(overlay_path, live_out_dir / overlay_path.name)
 
     print(json.dumps({**payload["generated_files"], "summary_json": str(summary_json)}, indent=2))
 

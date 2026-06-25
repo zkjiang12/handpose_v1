@@ -13,6 +13,12 @@
     "interactive_3d_scene": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_all_available_interactive_3d_scene.html",
     "camera_combo_error_summary_csv": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_camera_combo_error_summary.csv",
     "camera_combo_error_summary_plot": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_camera_combo_error_summary.png",
-    "bone_error_heatmap_by_camera_combo": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_bone_error_heatmap_by_camera_combo.png"
+    "bone_error_heatmap_by_camera_combo": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_bone_error_heatmap_by_camera_combo.png",
+    "camera_frame_overlays": {
+      "cam1": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_cam1_raw_frame_keypoints.jpg",
+      "cam2": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_cam2_raw_frame_keypoints.jpg",
+      "cam3": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_cam3_raw_frame_keypoints.jpg",
+      "cam4": "get_GT_handpose/ego_exo_visualizations/v2/handpose_labeler/results/left_hand_session_171483_cam4_raw_frame_keypoints.jpg"
+    }
   }
 }
