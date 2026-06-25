@@ -1,0 +1,40 @@
+{
+  "source_results": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_127264_triangulated_results.json",
+  "source_labels": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/labels/right_hand_session_127264.json",
+  "source_bone_lengths": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/labels/personal_hand_bone_lengths_right_reference.json",
+  "hand": "right",
+  "combo": "cam1+cam2+cam3+cam4",
+  "method": "GT pose reconstructed by preserving each triangulated 3D bone direction and replacing each segment length with the measured right-hand GT length.",
+  "joint_delta_mm_gt_length_pose_vs_triangulated": {
+    "wrist": 0.0,
+    "thumb_cmc": 0.5406785771943146,
+    "thumb_mcp": 4.423375927875782,
+    "thumb_ip": 3.975534096321405,
+    "thumb_tip": 1.7938436530460367,
+    "index_mcp": 8.74741489447298,
+    "index_pip": 8.687325854160333,
+    "index_dip": 7.958783778593974,
+    "index_tip": 7.467435096591941,
+    "middle_mcp": 11.434772109447707,
+    "middle_pip": 11.844021843801833,
+    "middle_dip": 11.353329973143712,
+    "middle_tip": 9.418760542792443,
+    "ring_mcp": 13.587653852922692,
+    "ring_pip": 15.54531942168002,
+    "ring_dip": 12.444205136835263,
+    "ring_tip": 11.767242979883676,
+    "pinky_mcp": 12.772517558686113,
+    "pinky_pip": 17.08386149038578,
+    "pinky_dip": 15.85645444347267,
+    "pinky_tip": 16.79071450200592
+  },
+  "joint_delta_summary_mm": {
+    "mean": 9.690154558729265,
+    "median": 11.353329973143712,
+    "max": 17.08386149038578
+  },
+  "generated_files": {
+    "handpose_3d": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_127264_3d_handpose_cam1_cam2_cam3_cam4.png",
+    "pose_2d_comparison": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_127264_2d_pose_comparison_cam1_cam2_cam3_cam4.png"
+  }
+}
