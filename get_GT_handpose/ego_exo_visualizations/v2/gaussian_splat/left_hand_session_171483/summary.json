@@ -23,15 +23,92 @@
     ]
   ],
   "num_board_splat_points": 14241,
+  "num_full_scene_feature_splat_points": 78,
+  "num_dense_stereo_splat_points": 1592,
+  "num_full_scene_combined_splat_points": 15911,
+  "full_scene_feature_stats": {
+    "feature_counts": {
+      "cam1": 3827,
+      "cam2": 4769,
+      "cam3": 2791,
+      "cam4": 6641
+    },
+    "pair_stats": [
+      {
+        "pair": "cam1+cam2",
+        "matches": 144,
+        "after_fundamental": 41,
+        "accepted": 33
+      },
+      {
+        "pair": "cam1+cam3",
+        "matches": 94,
+        "after_fundamental": 23,
+        "accepted": 6
+      },
+      {
+        "pair": "cam1+cam4",
+        "matches": 92,
+        "after_fundamental": 41,
+        "accepted": 34
+      },
+      {
+        "pair": "cam2+cam3",
+        "matches": 111,
+        "after_fundamental": 20,
+        "accepted": 17
+      },
+      {
+        "pair": "cam2+cam4",
+        "matches": 86,
+        "after_fundamental": 18,
+        "accepted": 1
+      },
+      {
+        "pair": "cam3+cam4",
+        "matches": 63,
+        "after_fundamental": 12,
+        "accepted": 0
+      }
+    ],
+    "points_before_voxel": 91,
+    "points_after_voxel": 78
+  },
+  "dense_stereo_stats": {
+    "pair_stats": [
+      {
+        "pair": "cam4+cam1",
+        "sampled": 129600,
+        "accepted": 2319
+      },
+      {
+        "pair": "cam4+cam2",
+        "sampled": 129600,
+        "accepted": 2937
+      },
+      {
+        "pair": "cam3+cam1",
+        "sampled": 129600,
+        "accepted": 14
+      }
+    ],
+    "points_before_voxel": 5270,
+    "points_after_voxel": 1592
+  },
   "limitations": [
     "No trained Gaussian Splat model is produced locally because nerfstudio/gsplat/colmap are not installed.",
     "Only four unique viewpoints are available, so true novel-view reconstruction quality will be limited.",
-    "Moving hands are dynamic foreground and should be masked/avoided for static-scene training."
+    "Moving hands are dynamic foreground and should be masked/avoided for static-scene training.",
+    "The local full-scene splat is a classical feature/stereo point-splat proxy, not learned dense Gaussian optimization."
   ],
   "files": {
     "transforms": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/transforms.json",
     "colmap_text": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/colmap_text",
     "board_plane_splat_ply": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/board_plane_splat_points.ply",
-    "board_plane_splat_preview": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/board_plane_splat_preview.html"
+    "board_plane_splat_preview": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/board_plane_splat_preview.html",
+    "full_scene_feature_splat_ply": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/full_scene_feature_splat_points.ply",
+    "dense_stereo_splat_ply": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/dense_stereo_splat_points.ply",
+    "full_scene_combined_splat_ply": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/full_scene_combined_splat_points.ply",
+    "full_scene_splat_preview": "get_GT_handpose/ego_exo_visualizations/v2/gaussian_splat/left_hand_session_171483/full_scene_splat_preview.html"
   }
 }
