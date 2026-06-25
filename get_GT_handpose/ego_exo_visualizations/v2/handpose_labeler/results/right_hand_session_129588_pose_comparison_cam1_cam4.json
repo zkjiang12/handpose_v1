@@ -6,7 +6,7 @@
   "combo": "cam1+cam4",
   "method": "GT pose reconstructed by preserving each triangulated 3D bone direction and replacing each segment length with the measured right-hand GT length.",
   "full_scene": {
-    "coordinate_frame": "Z-up display frame: [X, Y, Z_up] = [raw_world_X, raw_world_Y, -raw_world_Z]",
+    "coordinate_frame": "Handedness-preserving Z-up display frame: [X, Y, Z_up] = [raw_world_X, -raw_world_Y, -raw_world_Z]",
     "board_size_mm": [
       560.0,
       400.0
@@ -20,12 +20,12 @@
         ],
         "z_up_center_mm": [
           594.6815385768647,
-          359.42263167653124,
+          -359.42263167653124,
           640.6271068194719
         ],
         "z_up_optical_axis_endpoint_mm": [
           608.1765360436556,
-          224.0677018290464,
+          -224.0677018290464,
           468.22905575927643
         ]
       },
@@ -37,12 +37,12 @@
         ],
         "z_up_center_mm": [
           78.56510813879055,
-          -16.88341873177016,
+          16.88341873177016,
           637.8841115286904
         ],
         "z_up_optical_axis_endpoint_mm": [
           210.89287300112855,
-          -14.708677320040474,
+          14.708677320040474,
           462.64486607742197
         ]
       },
@@ -54,12 +54,12 @@
         ],
         "z_up_center_mm": [
           279.37969094155477,
-          -407.11565390402234,
+          407.11565390402234,
           640.2497883959675
         ],
         "z_up_optical_axis_endpoint_mm": [
           254.3558008606016,
-          -273.67343458160883,
+          273.67343458160883,
           467.6486904054701
         ]
       },
@@ -71,12 +71,12 @@
         ],
         "z_up_center_mm": [
           176.4010380595641,
-          331.4573123511986,
+          -331.4573123511986,
           962.5607314776009
         ],
         "z_up_optical_axis_endpoint_mm": [
           188.96522823732218,
-          197.54331327366975,
+          -197.54331327366975,
           788.9711523657178
         ]
       }
@@ -113,6 +113,7 @@
   "generated_files": {
     "handpose_3d": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_3d_handpose_cam1_cam4.png",
     "clean_handpose_3d_render": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_clean_3d_handpose_render_cam1_cam4.png",
+    "interactive_handpose_3d": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_interactive_3d_handpose_cam1_cam4.html",
     "full_scene_3d_z_up": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_full_3d_scene_z_up_cam1_cam4.png",
     "pose_2d_comparison": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_2d_pose_comparison_cam1_cam4.png"
   }

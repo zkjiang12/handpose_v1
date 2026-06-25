@@ -86,8 +86,8 @@ def set_equal_3d_axes(ax: plt.Axes, points: np.ndarray, pad_mm: float = 12.0) ->
 
 
 def world_to_z_up(xyz: np.ndarray) -> np.ndarray:
-    """Convert raw ChArUco-world xyz to a display frame where +Z is up."""
-    return np.array([xyz[0], xyz[1], -xyz[2]], dtype=float)
+    """Convert raw ChArUco-world xyz to a handedness-preserving +Z-up display frame."""
+    return np.array([xyz[0], -xyz[1], -xyz[2]], dtype=float)
 
 
 def load_calibration_report(labels: dict, report_path: Path | None) -> dict:
@@ -226,7 +226,7 @@ def save_3d_handpose(
     ax.scatter([pts[0, 0]], [pts[0, 1]], [pts[0, 2]], s=80, color="#dc2626", label="wrist")
     ax.set_title(f"Right hand 3D triangulated pose ({combo})")
     ax.set_xlabel("world X (mm)")
-    ax.set_ylabel("world Y (mm)")
+    ax.set_ylabel("display Y = -raw world Y (mm)")
     ax.set_zlabel("height above board (mm)")
     set_equal_3d_axes(ax, np.vstack([pts, [[min_x, min_y, 0], [max_x, max_y, 0]]]))
     ax.view_init(elev=27, azim=-55)
@@ -371,6 +371,177 @@ def save_clean_handpose_render(
     crop_render_to_content(path)
 
 
+def save_interactive_handpose_html(
+    path: Path,
+    tri_points: dict[str, np.ndarray],
+    keypoint_names: list[str],
+    edges: list[list[int]],
+    combo: str,
+) -> None:
+    import plotly.graph_objects as go
+
+    display = world_to_display(tri_points)
+    pts = np.stack([display[name] for name in keypoint_names])
+    min_xyz = pts.min(axis=0)
+    max_xyz = pts.max(axis=0)
+    center = (min_xyz + max_xyz) / 2.0
+    span = float((max_xyz - min_xyz).max())
+    plane_pad = 42.0
+    min_x, min_y = pts[:, :2].min(axis=0) - plane_pad
+    max_x, max_y = pts[:, :2].max(axis=0) + plane_pad
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Surface(
+            x=[[min_x, max_x], [min_x, max_x]],
+            y=[[min_y, min_y], [max_y, max_y]],
+            z=[[0, 0], [0, 0]],
+            opacity=0.22,
+            showscale=False,
+            colorscale=[[0, "#e2e8f0"], [1, "#e2e8f0"]],
+            hoverinfo="skip",
+            name="board plane",
+        )
+    )
+
+    for a, b in edges:
+        start = keypoint_names[a]
+        end = keypoint_names[b]
+        pa = display[start]
+        pb = display[end]
+        color = edge_color(a, b, keypoint_names)
+        fig.add_trace(
+            go.Scatter3d(
+                x=[pa[0], pb[0]],
+                y=[pa[1], pb[1]],
+                z=[pa[2], pb[2]],
+                mode="lines",
+                line={"color": color, "width": 11 if a == 0 else 8},
+                hoverinfo="skip",
+                showlegend=False,
+            )
+        )
+        fig.add_trace(
+            go.Scatter3d(
+                x=[pa[0], pb[0]],
+                y=[pa[1], pb[1]],
+                z=[1.0, 1.0],
+                mode="lines",
+                line={"color": "#94a3b8", "width": 5},
+                opacity=0.18,
+                hoverinfo="skip",
+                showlegend=False,
+            )
+        )
+
+    marker_colors = []
+    marker_sizes = []
+    for i, _ in enumerate(keypoint_names):
+        if i == 0:
+            marker_colors.append("#f97316")
+            marker_sizes.append(9)
+        elif i in (4, 8, 12, 16, 20):
+            marker_colors.append("#111827")
+            marker_sizes.append(7)
+        else:
+            marker_colors.append("#1f2937")
+            marker_sizes.append(6)
+    fig.add_trace(
+        go.Scatter3d(
+            x=pts[:, 0],
+            y=pts[:, 1],
+            z=pts[:, 2],
+            mode="markers+text",
+            marker={"size": marker_sizes, "color": marker_colors, "line": {"color": "#0f172a", "width": 1}},
+            text=[str(i) for i in range(len(keypoint_names))],
+            textposition="top center",
+            hovertext=keypoint_names,
+            hoverinfo="text",
+            name="joints",
+        )
+    )
+
+    axis_len = max(70.0, span * 0.55)
+    origin = np.array([min_x, min_y, 0.0])
+    axes = [
+        ("+X", [axis_len, 0, 0], "#ef4444"),
+        ("+Y display", [0, axis_len, 0], "#22c55e"),
+        ("+Z up", [0, 0, axis_len], "#2563eb"),
+    ]
+    for label, vec, color in axes:
+        end = origin + np.array(vec)
+        fig.add_trace(
+            go.Scatter3d(
+                x=[origin[0], end[0]],
+                y=[origin[1], end[1]],
+                z=[origin[2], end[2]],
+                mode="lines+text",
+                line={"color": color, "width": 7},
+                text=["", label],
+                textposition="top center",
+                hoverinfo="skip",
+                showlegend=False,
+            )
+        )
+
+    def camera(eye: dict[str, float]) -> dict:
+        return {"eye": eye, "center": {"x": 0, "y": 0, "z": 0}, "up": {"x": 0, "y": 0, "z": 1}}
+
+    cameras = {
+        "Iso": camera({"x": 1.35, "y": -1.55, "z": 1.05}),
+        "Top": camera({"x": 0.0, "y": 0.0, "z": 2.25}),
+        "Front": camera({"x": 0.0, "y": -2.25, "z": 0.35}),
+        "Back": camera({"x": 0.0, "y": 2.25, "z": 0.35}),
+        "Left": camera({"x": -2.25, "y": 0.0, "z": 0.35}),
+        "Right": camera({"x": 2.25, "y": 0.0, "z": 0.35}),
+    }
+    buttons = [
+        {
+            "label": name,
+            "method": "relayout",
+            "args": [{"scene.camera": cam}],
+        }
+        for name, cam in cameras.items()
+    ]
+
+    fig.update_layout(
+        title=f"Interactive right-hand 3D pose ({combo})",
+        width=1100,
+        height=900,
+        margin={"l": 0, "r": 0, "b": 0, "t": 58},
+        paper_bgcolor="#f8fafc",
+        scene={
+            "xaxis": {"title": "X = raw world X (mm)", "backgroundcolor": "#f8fafc"},
+            "yaxis": {"title": "Y = -raw world Y (mm)", "backgroundcolor": "#f8fafc"},
+            "zaxis": {"title": "Z up = -raw world Z (mm)", "backgroundcolor": "#f8fafc"},
+            "aspectmode": "data",
+            "camera": cameras["Iso"],
+        },
+        updatemenus=[
+            {
+                "type": "buttons",
+                "direction": "right",
+                "x": 0.02,
+                "y": 1.02,
+                "buttons": buttons,
+            }
+        ],
+        annotations=[
+            {
+                "text": "Handedness-preserving display frame: [X, Y, Z] = [raw_X, -raw_Y, -raw_Z]. Drag to rotate.",
+                "xref": "paper",
+                "yref": "paper",
+                "x": 0.01,
+                "y": 0.01,
+                "showarrow": False,
+                "align": "left",
+                "font": {"size": 12, "color": "#475569"},
+            }
+        ],
+    )
+    fig.write_html(str(path), include_plotlyjs="cdn", full_html=True)
+
+
 def save_full_3d_scene(
     path: Path,
     tri_points: dict[str, np.ndarray],
@@ -483,14 +654,14 @@ def save_full_3d_scene(
     all_points = np.vstack(scene_points)
     set_equal_3d_axes(ax, all_points, pad_mm=35.0)
     ax.set_xlabel("world X (mm)")
-    ax.set_ylabel("world Y (mm)")
+    ax.set_ylabel("display Y = -raw world Y (mm)")
     ax.set_zlabel("Z up / height above board (mm)")
     ax.view_init(elev=24, azim=-58)
     ax.legend(loc="upper left")
     fig.savefig(path, dpi=180)
     plt.close(fig)
     return {
-        "coordinate_frame": "Z-up display frame: [X, Y, Z_up] = [raw_world_X, raw_world_Y, -raw_world_Z]",
+        "coordinate_frame": "Handedness-preserving Z-up display frame: [X, Y, Z_up] = [raw_world_X, -raw_world_Y, -raw_world_Z]",
         "board_size_mm": [board_width, board_height],
         "cameras": camera_report,
     }
@@ -578,12 +749,14 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     hand_3d_path = args.out_dir / f"{stem}_3d_handpose_{suffix}.png"
     clean_hand_render_path = args.out_dir / f"{stem}_clean_3d_handpose_render_{suffix}.png"
+    interactive_hand_html_path = args.out_dir / f"{stem}_interactive_3d_handpose_{suffix}.html"
     full_scene_3d_path = args.out_dir / f"{stem}_full_3d_scene_z_up_{suffix}.png"
     comparison_2d_path = args.out_dir / f"{stem}_2d_pose_comparison_{suffix}.png"
     comparison_json_path = args.out_dir / f"{stem}_pose_comparison_{suffix}.json"
 
     save_3d_handpose(hand_3d_path, tri_points, keypoint_names, edges, args.combo)
     save_clean_handpose_render(clean_hand_render_path, tri_points, keypoint_names, edges, args.combo)
+    save_interactive_handpose_html(interactive_hand_html_path, tri_points, keypoint_names, edges, args.combo)
     full_scene = save_full_3d_scene(
         full_scene_3d_path,
         tri_points,
@@ -612,6 +785,7 @@ def main() -> None:
         "generated_files": {
             "handpose_3d": str(hand_3d_path),
             "clean_handpose_3d_render": str(clean_hand_render_path),
+            "interactive_handpose_3d": str(interactive_hand_html_path),
             "full_scene_3d_z_up": str(full_scene_3d_path),
             "pose_2d_comparison": str(comparison_2d_path),
         },
