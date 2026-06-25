@@ -1,0 +1,29 @@
+{
+  "reference_camera": "cam1",
+  "reference_time_s": 52.96,
+  "offset_convention": "offset_s means target_camera_time = reference_camera_time + offset_s. To put a target camera event on the reference timeline, use target_time_s - offset_s.",
+  "frames": {
+    "cam1": {
+      "audio_aligned_time_s": 52.96,
+      "same_local_time_s": 52.96,
+      "offset_s": 0.0
+    },
+    "cam2": {
+      "audio_aligned_time_s": 46.65,
+      "same_local_time_s": 52.96,
+      "offset_s": -6.3100000000000005
+    },
+    "cam3": {
+      "audio_aligned_time_s": 40.68,
+      "same_local_time_s": 52.96,
+      "offset_s": -12.280000000000001
+    },
+    "cam4": {
+      "audio_aligned_time_s": 49.125,
+      "same_local_time_s": 52.96,
+      "offset_s": -3.835
+    }
+  },
+  "audio_aligned_preview": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/05_audio_aligned_clap_frame_preview.jpg",
+  "same_timestamp_preview": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/05b_same_timestamp_frame_preview.jpg"
+}

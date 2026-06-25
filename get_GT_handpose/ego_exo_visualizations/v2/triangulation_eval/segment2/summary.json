@@ -1,0 +1,235 @@
+{
+  "segment": "segment2",
+  "source_report": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take2/v2_calibration_and_audio_sync_report.json",
+  "camera_reprojection": {
+    "cam1": {
+      "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-1/a77064-H-0002.mp4",
+      "best_visualized_frame_s": 90.0,
+      "num_corners": 92,
+      "pnp_reprojection_px": {
+        "mean": 1.4695205598233374,
+        "median": 1.3203969338328965,
+        "p95": 3.2665586736193237,
+        "max": 4.85614186517076
+      },
+      "aggregate_pose_reprojection_px": {
+        "mean": 1.5859384604276594,
+        "median": 1.418343287244089,
+        "p95": 2.938578540043103,
+        "max": 5.721651609721774
+      }
+    },
+    "cam2": {
+      "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-2/a77033-H-0004.mp4",
+      "best_visualized_frame_s": 95.0,
+      "num_corners": 111,
+      "pnp_reprojection_px": {
+        "mean": 0.8378087081754928,
+        "median": 0.7603487812873369,
+        "p95": 1.7017361709473908,
+        "max": 2.5242472008964065
+      },
+      "aggregate_pose_reprojection_px": {
+        "mean": 1.0999224632964753,
+        "median": 1.1241702810810912,
+        "p95": 1.8764553845833922,
+        "max": 2.2992143243096295
+      }
+    },
+    "cam3": {
+      "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-3/a72491-H-0004.mp4",
+      "best_visualized_frame_s": 60.0,
+      "num_corners": 54,
+      "pnp_reprojection_px": {
+        "mean": 0.7240710173686904,
+        "median": 0.4977025946572141,
+        "p95": 2.1665680831315544,
+        "max": 2.722704962375335
+      },
+      "aggregate_pose_reprojection_px": {
+        "mean": 0.9157961674531306,
+        "median": 0.7925535788484863,
+        "p95": 2.34509275750743,
+        "max": 3.1215160320843536
+      }
+    },
+    "cam4": {
+      "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-4/a67244-H-0002.mp4",
+      "best_visualized_frame_s": 90.0,
+      "num_corners": 90,
+      "pnp_reprojection_px": {
+        "mean": 0.4727132780219533,
+        "median": 0.32293353364470445,
+        "p95": 1.7027293161156405,
+        "max": 2.2275094894147975
+      },
+      "aggregate_pose_reprojection_px": {
+        "mean": 0.5056344470198532,
+        "median": 0.3620427888199031,
+        "p95": 1.5801382130025377,
+        "max": 2.276926996492729
+      }
+    }
+  },
+  "triangulation_by_camera_count": {
+    "2": {
+      "num_combinations": 6,
+      "best_combo": "cam3+cam4",
+      "best_median_mm": 1.2798458646076005,
+      "best_p95_mm": 4.350706187015509,
+      "worst_combo": "cam1+cam4",
+      "worst_median_mm": 2.0728049710722356,
+      "mean_of_combo_medians_mm": 1.7090186126913178,
+      "median_of_combo_medians_mm": 1.7414294756431705
+    },
+    "3": {
+      "num_combinations": 4,
+      "best_combo": "cam1+cam3+cam4",
+      "best_median_mm": 1.282868383758767,
+      "best_p95_mm": 2.4367701496704672,
+      "worst_combo": "cam1+cam2+cam4",
+      "worst_median_mm": 1.7006821919449884,
+      "mean_of_combo_medians_mm": 1.4586518947636558,
+      "median_of_combo_medians_mm": 1.4255285016754335
+    },
+    "4": {
+      "num_combinations": 1,
+      "best_combo": "cam1+cam2+cam3+cam4",
+      "best_median_mm": 1.346782445060371,
+      "best_p95_mm": 2.457428009786815,
+      "worst_combo": "cam1+cam2+cam3+cam4",
+      "worst_median_mm": 1.346782445060371,
+      "mean_of_combo_medians_mm": 1.346782445060371,
+      "median_of_combo_medians_mm": 1.346782445060371
+    }
+  },
+  "triangulation_combos": [
+    {
+      "combo": "cam1+cam2",
+      "num_cameras": 2,
+      "num_common_corners": 92,
+      "triangulation_mean_mm": 1.9870393537848798,
+      "triangulation_median_mm": 1.7832886858309136,
+      "triangulation_p95_mm": 3.7208238337330215,
+      "triangulation_max_mm": 6.037499478385605,
+      "reprojected_triangulated_mean_px": 0.6436615203702128,
+      "reprojected_triangulated_median_px": 0.5467804468423053
+    },
+    {
+      "combo": "cam1+cam3",
+      "num_cameras": 2,
+      "num_common_corners": 50,
+      "triangulation_mean_mm": 2.0009492446353794,
+      "triangulation_median_mm": 1.6995702654554274,
+      "triangulation_p95_mm": 3.633558259292343,
+      "triangulation_max_mm": 5.668890749723953,
+      "reprojected_triangulated_mean_px": 0.5100276149716436,
+      "reprojected_triangulated_median_px": 0.44148188539330546
+    },
+    {
+      "combo": "cam1+cam4",
+      "num_cameras": 2,
+      "num_common_corners": 74,
+      "triangulation_mean_mm": 2.414202174709844,
+      "triangulation_median_mm": 2.0728049710722356,
+      "triangulation_p95_mm": 4.952006986833789,
+      "triangulation_max_mm": 9.73822874657433,
+      "reprojected_triangulated_mean_px": 0.603790275689688,
+      "reprojected_triangulated_median_px": 0.4306706599363008
+    },
+    {
+      "combo": "cam2+cam3",
+      "num_cameras": 2,
+      "num_common_corners": 51,
+      "triangulation_mean_mm": 1.7425061551936023,
+      "triangulation_median_mm": 1.4379664200032645,
+      "triangulation_p95_mm": 4.823553400006036,
+      "triangulation_max_mm": 5.829419524679229,
+      "reprojected_triangulated_mean_px": 0.5333079377443772,
+      "reprojected_triangulated_median_px": 0.5162014005150558
+    },
+    {
+      "combo": "cam2+cam4",
+      "num_cameras": 2,
+      "num_common_corners": 86,
+      "triangulation_mean_mm": 2.3630162007417885,
+      "triangulation_median_mm": 1.9806354691784678,
+      "triangulation_p95_mm": 5.226056732455714,
+      "triangulation_max_mm": 9.365343437419444,
+      "reprojected_triangulated_mean_px": 0.27854847954931494,
+      "reprojected_triangulated_median_px": 0.23559926909906231
+    },
+    {
+      "combo": "cam3+cam4",
+      "num_cameras": 2,
+      "num_common_corners": 46,
+      "triangulation_mean_mm": 1.6186726157783153,
+      "triangulation_median_mm": 1.2798458646076005,
+      "triangulation_p95_mm": 4.350706187015509,
+      "triangulation_max_mm": 4.469420049402528,
+      "reprojected_triangulated_mean_px": 0.38329774382916365,
+      "reprojected_triangulated_median_px": 0.3555918789242386
+    },
+    {
+      "combo": "cam1+cam2+cam3",
+      "num_cameras": 3,
+      "num_common_corners": 50,
+      "triangulation_mean_mm": 1.45921270533806,
+      "triangulation_median_mm": 1.4438852956740647,
+      "triangulation_p95_mm": 2.3877736677200185,
+      "triangulation_max_mm": 4.574873198644025,
+      "reprojected_triangulated_mean_px": 0.8705673278387479,
+      "reprojected_triangulated_median_px": 0.7784194386245882
+    },
+    {
+      "combo": "cam1+cam2+cam4",
+      "num_cameras": 3,
+      "num_common_corners": 74,
+      "triangulation_mean_mm": 1.9218317707873696,
+      "triangulation_median_mm": 1.7006821919449884,
+      "triangulation_p95_mm": 3.7861085574867595,
+      "triangulation_max_mm": 6.714445355596328,
+      "reprojected_triangulated_mean_px": 0.7158271529536874,
+      "reprojected_triangulated_median_px": 0.5476712392070803
+    },
+    {
+      "combo": "cam1+cam3+cam4",
+      "num_cameras": 3,
+      "num_common_corners": 42,
+      "triangulation_mean_mm": 1.4540094986678083,
+      "triangulation_median_mm": 1.282868383758767,
+      "triangulation_p95_mm": 2.4367701496704672,
+      "triangulation_max_mm": 5.029226823100076,
+      "reprojected_triangulated_mean_px": 0.8383475634362403,
+      "reprojected_triangulated_median_px": 0.6981019548848669
+    },
+    {
+      "combo": "cam2+cam3+cam4",
+      "num_cameras": 3,
+      "num_common_corners": 43,
+      "triangulation_mean_mm": 1.724013445998698,
+      "triangulation_median_mm": 1.4071717076768027,
+      "triangulation_p95_mm": 4.347870591994692,
+      "triangulation_max_mm": 4.579699118205438,
+      "reprojected_triangulated_mean_px": 0.5856929484819147,
+      "reprojected_triangulated_median_px": 0.5415851717956595
+    },
+    {
+      "combo": "cam1+cam2+cam3+cam4",
+      "num_cameras": 4,
+      "num_common_corners": 42,
+      "triangulation_mean_mm": 1.462953932108741,
+      "triangulation_median_mm": 1.346782445060371,
+      "triangulation_p95_mm": 2.457428009786815,
+      "triangulation_max_mm": 4.904515651885314,
+      "reprojected_triangulated_mean_px": 0.8802041041881635,
+      "reprojected_triangulated_median_px": 0.7571143661149675
+    }
+  ],
+  "generated_files": {
+    "combo_csv": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/triangulation_eval/segment2/triangulation_combo_summary.csv",
+    "reprojection_heatmaps": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/triangulation_eval/segment2/reprojection_error_heatmaps.png",
+    "triangulation_heatmaps": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/triangulation_eval/segment2/triangulation_error_heatmaps_all_combos.png",
+    "combo_bar_chart": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/triangulation_eval/segment2/triangulation_combo_median_errors.png"
+  }
+}

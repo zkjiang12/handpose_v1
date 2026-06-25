@@ -1,0 +1,338 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f7f8;
+  --panel: #ffffff;
+  --ink: #17191c;
+  --muted: #626a73;
+  --line: #d6dbe1;
+  --accent: #0f766e;
+  --accent-strong: #0b5f59;
+  --danger: #b91c1c;
+  --cam1: #d83b33;
+  --cam2: #2374ab;
+  --cam3: #2a9d55;
+  --cam4: #7c4dbe;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 15px;
+}
+
+#statusLine {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button,
+select,
+input[type="number"] {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.primary:hover {
+  background: var(--accent-strong);
+}
+
+label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+main {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.timebar,
+.panel,
+.cameraCard {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.timebar {
+  padding: 12px 14px;
+}
+
+.timeReadout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+#timeText {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+#timeSlider {
+  width: 100%;
+}
+
+.videoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.cameraCard {
+  overflow: hidden;
+  min-width: 0;
+}
+
+.cameraHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cameraTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.cameraDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--cam1);
+}
+
+.cameraMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.videoWrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #111;
+}
+
+video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: #111;
+}
+
+.inactiveOverlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  font-weight: 650;
+}
+
+.cameraCard.inactive .inactiveOverlay {
+  display: flex;
+}
+
+.cameraControls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, auto));
+  gap: 8px;
+  padding: 10px 12px 12px;
+  align-items: center;
+}
+
+.cameraControls input[type="range"] {
+  width: 100%;
+  min-width: 90px;
+}
+
+.manualOffset {
+  width: 86px;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  padding: 12px;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.legend span {
+  display: inline-block;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+}
+
+.audioMark {
+  background: #8b949e;
+}
+
+.onsetMark {
+  background: #111827;
+}
+
+.accMark {
+  background: #16a34a;
+}
+
+.gyroMark {
+  background: #8b5cf6;
+}
+
+.timelinePanel {
+  padding-bottom: 10px;
+}
+
+#timelineCanvas {
+  width: 100%;
+  height: 520px;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  cursor: crosshair;
+}
+
+.offsetTable {
+  display: grid;
+  grid-template-columns: 110px repeat(2, minmax(150px, 1fr)) 130px 130px;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--line);
+  font-size: 13px;
+}
+
+.offsetTable > div {
+  background: #fff;
+  padding: 8px 10px;
+  min-height: 36px;
+}
+
+.offsetHead {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 950px) {
+  .topbar {
+    position: static;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .videoGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .cameraControls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .offsetTable {
+    grid-template-columns: 100px repeat(2, minmax(120px, 1fr));
+  }
+
+  .offsetTable .optional {
+    display: none;
+  }
+}

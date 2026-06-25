@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>v2 Four-Camera Handpose Labeler</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>v2 Four-Camera Handpose Labeler</h1>
+      <p id="statusLine">Loading...</p>
+    </div>
+    <div class="toolbar">
+      <button id="playBtn" class="primary">Play</button>
+      <button id="pauseBtn">Pause</button>
+      <button id="backFrameBtn">-1f</button>
+      <button id="fwdFrameBtn">+1f</button>
+      <label>Sync
+        <select id="syncModeSelect">
+          <option value="audio" selected>Audio</option>
+          <option value="device">Device/IMU</option>
+        </select>
+      </label>
+      <label>Time
+        <input id="timeInput" type="number" min="0" step="0.033" value="0">
+      </label>
+      <label>Zoom
+        <input id="zoomSlider" type="range" min="1" max="6" step="0.25" value="2">
+      </label>
+      <label>Dot
+        <input id="dotSizeSlider" type="range" min="3" max="12" step="1" value="6">
+      </label>
+      <label><input id="showLabelsToggle" type="checkbox"> Labels</label>
+      <label><input id="showSkeletonToggle" type="checkbox" checked> Skeleton</label>
+      <button id="exportBtn">Export JSON</button>
+      <button id="copyBtn">Copy</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="timebar">
+      <div class="timeReadout">
+        <span id="timeText">0.000s</span>
+        <span id="frameText">frame 0</span>
+      </div>
+      <input id="timeSlider" type="range" min="0" max="1" step="0.001" value="0">
+    </section>
+
+    <section class="labelbar">
+      <div class="activeState">
+        <label>Hand
+          <select id="handSelect">
+            <option value="left" selected>left</option>
+            <option value="right">right</option>
+          </select>
+        </label>
+        <label>Keypoint
+          <select id="keypointSelect"></select>
+        </label>
+        <button id="prevKpBtn">Prev</button>
+        <button id="nextKpBtn">Next</button>
+        <button id="clearActiveBtn">Clear active in all cams</button>
+      </div>
+      <div id="keypointButtons" class="keypointButtons"></div>
+    </section>
+
+    <section id="videoGrid" class="videoGrid"></section>
+
+    <section class="outputPanel">
+      <div class="outputHeader">
+        <h2>Export</h2>
+        <div class="outputActions">
+          <button id="loadJsonBtn">Load pasted JSON</button>
+          <button id="clearAllBtn">Clear all labels</button>
+        </div>
+      </div>
+      <textarea id="outputJson" spellcheck="false"></textarea>
+    </section>
+  </main>
+
+  <script src="data/handpose_labeler_data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

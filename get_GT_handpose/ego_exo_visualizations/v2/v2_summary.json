@@ -1,0 +1,168 @@
+{
+  "data_root": "/Users/zikangjiang/dev/ego-exo/v2",
+  "out_dir": "/Users/zikangjiang/dev/ego-exo/visualizations/v2",
+  "takes": {
+    "take1": {
+      "report": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/v2_calibration_and_audio_sync_report.json",
+      "world_scene": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/03_world_scene_board_cameras.png",
+      "audio_sync_plot": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/audio_sync_onset_envelopes.png",
+      "cameras": {
+        "cam1": {
+          "center_world_mm": [
+            594.6815385768647,
+            359.42263167653124,
+            -640.6271068194719
+          ],
+          "display_x_y_height_mm": [
+            594.6815385768647,
+            359.42263167653124,
+            640.6271068194719
+          ],
+          "reprojection_median_px": 1.2528739915296285,
+          "audio_offset_s": 0.0,
+          "audio_sync_confidence": "reference"
+        },
+        "cam2": {
+          "center_world_mm": [
+            78.56510813879055,
+            -16.88341873177016,
+            -637.8841115286904
+          ],
+          "display_x_y_height_mm": [
+            78.56510813879055,
+            -16.88341873177016,
+            637.8841115286904
+          ],
+          "reprojection_median_px": 0.7661444676032173,
+          "audio_offset_s": -6.3100000000000005,
+          "audio_sync_confidence": "high"
+        },
+        "cam3": {
+          "center_world_mm": [
+            279.37969094155477,
+            -407.11565390402234,
+            -640.2497883959675
+          ],
+          "display_x_y_height_mm": [
+            279.37969094155477,
+            -407.11565390402234,
+            640.2497883959675
+          ],
+          "reprojection_median_px": 0.5744116131949397,
+          "audio_offset_s": -12.280000000000001,
+          "audio_sync_confidence": "high"
+        },
+        "cam4": {
+          "center_world_mm": [
+            176.4010380595641,
+            331.4573123511986,
+            -962.5607314776009
+          ],
+          "display_x_y_height_mm": [
+            176.4010380595641,
+            331.4573123511986,
+            962.5607314776009
+          ],
+          "reprojection_median_px": 0.43467608591794515,
+          "audio_offset_s": -3.835,
+          "audio_sync_confidence": "high"
+        }
+      },
+      "board_corner_multiview_triangulation": {
+        "camera_names": [
+          "cam1",
+          "cam2",
+          "cam3",
+          "cam4"
+        ],
+        "num_common_corners": 52,
+        "mean_error_mm": 1.7920545645613737,
+        "median_error_mm": 1.7002979304960881,
+        "p95_error_mm": 2.6947319486595243,
+        "max_error_mm": 3.0993605860158695,
+        "note": "This is a sanity check using known ChArUco board geometry, not an independent hand-pose accuracy estimate."
+      }
+    },
+    "take2": {
+      "report": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take2/v2_calibration_and_audio_sync_report.json",
+      "world_scene": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take2/03_world_scene_board_cameras.png",
+      "audio_sync_plot": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take2/audio_sync_onset_envelopes.png",
+      "cameras": {
+        "cam1": {
+          "center_world_mm": [
+            597.6071696012884,
+            355.4666829668824,
+            -639.615484007237
+          ],
+          "display_x_y_height_mm": [
+            597.6071696012884,
+            355.4666829668824,
+            639.615484007237
+          ],
+          "reprojection_median_px": 1.2298974655645871,
+          "audio_offset_s": 0.0,
+          "audio_sync_confidence": "reference"
+        },
+        "cam2": {
+          "center_world_mm": [
+            79.20964870865907,
+            -16.281320107332842,
+            -637.666199494492
+          ],
+          "display_x_y_height_mm": [
+            79.20964870865907,
+            -16.281320107332842,
+            637.666199494492
+          ],
+          "reprojection_median_px": 0.8054840603734698,
+          "audio_offset_s": -6.305,
+          "audio_sync_confidence": "low"
+        },
+        "cam3": {
+          "center_world_mm": [
+            279.79171620934466,
+            -406.55459403584877,
+            -640.2610128863613
+          ],
+          "display_x_y_height_mm": [
+            279.79171620934466,
+            -406.55459403584877,
+            640.2610128863613
+          ],
+          "reprojection_median_px": 0.5888814499190662,
+          "audio_offset_s": -12.280000000000001,
+          "audio_sync_confidence": "high"
+        },
+        "cam4": {
+          "center_world_mm": [
+            178.47652355539668,
+            331.91048465179097,
+            -963.1490522162817
+          ],
+          "display_x_y_height_mm": [
+            178.47652355539668,
+            331.91048465179097,
+            963.1490522162817
+          ],
+          "reprojection_median_px": 0.3787838102193077,
+          "audio_offset_s": -3.835,
+          "audio_sync_confidence": "high"
+        }
+      },
+      "board_corner_multiview_triangulation": {
+        "camera_names": [
+          "cam1",
+          "cam2",
+          "cam3",
+          "cam4"
+        ],
+        "num_common_corners": 42,
+        "mean_error_mm": 1.462953932108741,
+        "median_error_mm": 1.346782445060371,
+        "p95_error_mm": 2.457428009786815,
+        "max_error_mm": 4.904515651885314,
+        "note": "This is a sanity check using known ChArUco board geometry, not an independent hand-pose accuracy estimate."
+      }
+    }
+  }
+}

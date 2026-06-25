@@ -1,0 +1,231 @@
+{
+  "schema": "v2_four_camera_handpose_labeler_data_v1",
+  "imageSize": [
+    1920,
+    1080
+  ],
+  "fps": 30,
+  "referenceCamera": "cam1",
+  "session": {
+    "label": "v2 single recording session",
+    "durationAudioS": 321.8981,
+    "durationDeviceS": 309.6191,
+    "note": "segment1/segment2 are file segments from one continuous recording session."
+  },
+  "keypointConvention": "MediaPipe_InterHand_21",
+  "keypointNames": [
+    "wrist",
+    "thumb_cmc",
+    "thumb_mcp",
+    "thumb_ip",
+    "thumb_tip",
+    "index_mcp",
+    "index_pip",
+    "index_dip",
+    "index_tip",
+    "middle_mcp",
+    "middle_pip",
+    "middle_dip",
+    "middle_tip",
+    "ring_mcp",
+    "ring_pip",
+    "ring_dip",
+    "ring_tip",
+    "pinky_mcp",
+    "pinky_pip",
+    "pinky_dip",
+    "pinky_tip"
+  ],
+  "edges": [
+    [
+      0,
+      1
+    ],
+    [
+      1,
+      2
+    ],
+    [
+      2,
+      3
+    ],
+    [
+      3,
+      4
+    ],
+    [
+      0,
+      5
+    ],
+    [
+      5,
+      6
+    ],
+    [
+      6,
+      7
+    ],
+    [
+      7,
+      8
+    ],
+    [
+      0,
+      9
+    ],
+    [
+      9,
+      10
+    ],
+    [
+      10,
+      11
+    ],
+    [
+      11,
+      12
+    ],
+    [
+      0,
+      13
+    ],
+    [
+      13,
+      14
+    ],
+    [
+      14,
+      15
+    ],
+    [
+      15,
+      16
+    ],
+    [
+      0,
+      17
+    ],
+    [
+      17,
+      18
+    ],
+    [
+      18,
+      19
+    ],
+    [
+      19,
+      20
+    ]
+  ],
+  "tracks": {
+    "cam1": {
+      "id": "cam1",
+      "segments": [
+        {
+          "id": "segment1",
+          "videoPath": "/Users/zikangjiang/dev/ego-exo/v2/camera-1/a77064-H-0001.mp4",
+          "videoUrl": "/v2/camera-1/a77064-H-0001.mp4",
+          "durationS": 180.0,
+          "deviceStartS": 0.0,
+          "referenceStartS": 0.0,
+          "audioOffsetS": 0.0,
+          "audioSyncConfidence": "reference",
+          "reprojectionMedianPx": 1.2529
+        },
+        {
+          "id": "segment2",
+          "videoPath": "/Users/zikangjiang/dev/ego-exo/v2/camera-1/a77064-H-0002.mp4",
+          "videoUrl": "/v2/camera-1/a77064-H-0002.mp4",
+          "durationS": 105.7333,
+          "deviceStartS": 179.9848,
+          "referenceStartS": 179.9848,
+          "audioOffsetS": 0.0,
+          "audioSyncConfidence": "reference",
+          "reprojectionMedianPx": 1.2299
+        }
+      ]
+    },
+    "cam2": {
+      "id": "cam2",
+      "segments": [
+        {
+          "id": "segment1",
+          "videoPath": "/Users/zikangjiang/dev/ego-exo/v2/camera-2/a77033-H-0003.mp4",
+          "videoUrl": "/v2/camera-2/a77033-H-0003.mp4",
+          "durationS": 180.0,
+          "deviceStartS": 0.0016,
+          "referenceStartS": 0.0,
+          "audioOffsetS": -6.31,
+          "audioSyncConfidence": "high",
+          "reprojectionMedianPx": 0.7661
+        },
+        {
+          "id": "segment2",
+          "videoPath": "/Users/zikangjiang/dev/ego-exo/v2/camera-2/a77033-H-0004.mp4",
+          "videoUrl": "/v2/camera-2/a77033-H-0004.mp4",
+          "durationS": 110.7,
+          "deviceStartS": 179.9884,
+          "referenceStartS": 179.9848,
+          "audioOffsetS": -6.305,
+          "audioSyncConfidence": "low",
+          "reprojectionMedianPx": 0.8055
+        }
+      ]
+    },
+    "cam3": {
+      "id": "cam3",
+      "segments": [
+        {
+          "id": "segment1",
+          "videoPath": "/Users/zikangjiang/dev/ego-exo/v2/camera-3/a72491-H-0003.mp4",
+          "videoUrl": "/v2/camera-3/a72491-H-0003.mp4",
+          "durationS": 180.0,
+          "deviceStartS": 0.0039,
+          "referenceStartS": 0.0,
+          "audioOffsetS": -12.28,
+          "audioSyncConfidence": "high",
+          "reprojectionMedianPx": 0.5744
+        },
+        {
+          "id": "segment2",
+          "videoPath": "/Users/zikangjiang/dev/ego-exo/v2/camera-3/a72491-H-0004.mp4",
+          "videoUrl": "/v2/camera-3/a72491-H-0004.mp4",
+          "durationS": 129.6333,
+          "deviceStartS": 179.9858,
+          "referenceStartS": 179.9848,
+          "audioOffsetS": -12.28,
+          "audioSyncConfidence": "high",
+          "reprojectionMedianPx": 0.5889
+        }
+      ]
+    },
+    "cam4": {
+      "id": "cam4",
+      "segments": [
+        {
+          "id": "segment1",
+          "videoPath": "/Users/zikangjiang/dev/ego-exo/v2/camera-4/a67244-H-0001.mp4",
+          "videoUrl": "/v2/camera-4/a67244-H-0001.mp4",
+          "durationS": 180.0,
+          "deviceStartS": 0.0017,
+          "referenceStartS": 0.0,
+          "audioOffsetS": -3.835,
+          "audioSyncConfidence": "high",
+          "reprojectionMedianPx": 0.4347
+        },
+        {
+          "id": "segment2",
+          "videoPath": "/Users/zikangjiang/dev/ego-exo/v2/camera-4/a67244-H-0002.mp4",
+          "videoUrl": "/v2/camera-4/a67244-H-0002.mp4",
+          "durationS": 125.8667,
+          "deviceStartS": 179.9871,
+          "referenceStartS": 179.9848,
+          "audioOffsetS": -3.835,
+          "audioSyncConfidence": "high",
+          "reprojectionMedianPx": 0.3788
+        }
+      ]
+    }
+  }
+}

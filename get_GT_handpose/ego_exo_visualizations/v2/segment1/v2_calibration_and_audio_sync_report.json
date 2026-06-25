@@ -1,0 +1,616 @@
+{
+  "extrinsics": {
+    "take": "take1",
+    "intrinsics": {
+      "model": "opencv_fisheye_equidistant",
+      "resolution": [
+        1920,
+        1080
+      ],
+      "K": [
+        [
+          699.19397931,
+          0.0,
+          976.75087121
+        ],
+        [
+          0.0,
+          699.60395977,
+          565.79050329
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "distortion": [
+        -0.0180332,
+        0.06173989,
+        -0.05266772,
+        0.01903308
+      ]
+    },
+    "board": {
+      "cols": 14,
+      "rows": 10,
+      "square_mm": 40.0,
+      "marker_mm": 20.0,
+      "dictionary": "DICT_5X5_100"
+    },
+    "cameras": {
+      "cam1": {
+        "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-1/a77064-H-0001.mp4",
+        "imu": "/Users/zikangjiang/dev/ego-exo/v2/camera-1/a77064-H-0001.txt",
+        "video_duration_s": 180.0,
+        "sample_step_s": 5,
+        "detection_attempts": 36,
+        "num_usable_pose_samples": 36,
+        "num_pose_samples_after_outlier_filter": 36,
+        "best_visualized_frame_s": 30.0,
+        "best_visualized_num_corners": 107,
+        "rvec_world_to_cam": [
+          -0.6635229968719865,
+          -0.07757918457490573,
+          0.03276313708547624
+        ],
+        "R_world_to_cam": [
+          [
+            0.996584260367549,
+            -0.005581920498983175,
+            -0.0823932894792307
+          ],
+          [
+            0.05516689495702386,
+            0.7874366185675531,
+            0.6139219701555717
+          ],
+          [
+            0.06145262963019544,
+            -0.6163703544967433,
+            0.7850548773232945
+          ]
+        ],
+        "t_world_to_cam_mm": [
+          -643.427367381726,
+          77.46577985810401,
+          687.9201453166747
+        ],
+        "camera_center_world_mm": [
+          594.6815385768647,
+          359.42263167653124,
+          -640.6271068194719
+        ],
+        "camera_display_x_y_height_mm": [
+          594.6815385768647,
+          359.42263167653124,
+          640.6271068194719
+        ],
+        "reprojection_mean_px": 1.4309586816790303,
+        "reprojection_median_px": 1.2528739915296285,
+        "reprojection_p95_px": 3.0645090767482785,
+        "reprojection_max_px": 7.670771048998954,
+        "imu_timestamps": {
+          "first_t_us": 7790417,
+          "last_t_us": 187743793,
+          "duration_s_from_imu": 179.953376
+        }
+      },
+      "cam2": {
+        "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-2/a77033-H-0003.mp4",
+        "imu": "/Users/zikangjiang/dev/ego-exo/v2/camera-2/a77033-H-0003.txt",
+        "video_duration_s": 180.0,
+        "sample_step_s": 5,
+        "detection_attempts": 36,
+        "num_usable_pose_samples": 35,
+        "num_pose_samples_after_outlier_filter": 35,
+        "best_visualized_frame_s": 40.0,
+        "best_visualized_num_corners": 111,
+        "rvec_world_to_cam": [
+          -0.48846587380130696,
+          -0.5199540236275119,
+          -1.482579895406999
+        ],
+        "R_world_to_cam": [
+          [
+            0.02027260692484764,
+            0.9994103818726909,
+            -0.0277111893204276
+          ],
+          [
+            -0.7977968391917933,
+            0.032875756308240994,
+            0.6020293913279857
+          ],
+          [
+            0.6025854501927959,
+            0.009903194042484909,
+            0.79799292099849
+          ]
+        ],
+        "t_world_to_cam_mm": [
+          -2.395782972335124,
+          447.25903350517467,
+          461.85201413184876
+        ],
+        "camera_center_world_mm": [
+          78.56510813879055,
+          -16.88341873177016,
+          -637.8841115286904
+        ],
+        "camera_display_x_y_height_mm": [
+          78.56510813879055,
+          -16.88341873177016,
+          637.8841115286904
+        ],
+        "reprojection_mean_px": 0.8751303539759626,
+        "reprojection_median_px": 0.7661444676032173,
+        "reprojection_p95_px": 1.800170527001284,
+        "reprojection_max_px": 6.62797321193751,
+        "imu_timestamps": {
+          "first_t_us": 7791988,
+          "last_t_us": 187744521,
+          "duration_s_from_imu": 179.952533
+        }
+      },
+      "cam3": {
+        "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-3/a72491-H-0003.mp4",
+        "imu": "/Users/zikangjiang/dev/ego-exo/v2/camera-3/a72491-H-0003.txt",
+        "video_duration_s": 180.0,
+        "sample_step_s": 5,
+        "detection_attempts": 36,
+        "num_usable_pose_samples": 29,
+        "num_pose_samples_after_outlier_filter": 29,
+        "best_visualized_frame_s": 35.0,
+        "best_visualized_num_corners": 61,
+        "rvec_world_to_cam": [
+          -0.15104656633219227,
+          0.9953431670352967,
+          2.9064630880519893
+        ],
+        "R_world_to_cam": [
+          [
+            -0.9930240981311531,
+            -0.09379374280875592,
+            -0.0714554010606271
+          ],
+          [
+            0.030299342865784923,
+            -0.7886390790996902,
+            0.6141093980217972
+          ],
+          [
+            -0.11395214062364835,
+            0.6076603794281125,
+            0.7859794990459805
+          ]
+        ],
+        "t_world_to_cam_mm": [
+          193.49655928888984,
+          63.6510767079192,
+          782.4471744997635
+        ],
+        "camera_center_world_mm": [
+          279.37969094155477,
+          -407.11565390402234,
+          -640.2497883959675
+        ],
+        "camera_display_x_y_height_mm": [
+          279.37969094155477,
+          -407.11565390402234,
+          640.2497883959675
+        ],
+        "reprojection_mean_px": 0.7528441565956775,
+        "reprojection_median_px": 0.5744116131949397,
+        "reprojection_p95_px": 2.281593234590118,
+        "reprojection_max_px": 4.305242017083252,
+        "imu_timestamps": {
+          "first_t_us": 7794280,
+          "last_t_us": 187742027,
+          "duration_s_from_imu": 179.947747
+        }
+      },
+      "cam4": {
+        "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-4/a67244-H-0001.mp4",
+        "imu": "/Users/zikangjiang/dev/ego-exo/v2/camera-4/a67244-H-0001.txt",
+        "video_duration_s": 180.0,
+        "sample_step_s": 5,
+        "detection_attempts": 36,
+        "num_usable_pose_samples": 36,
+        "num_pose_samples_after_outlier_filter": 36,
+        "best_visualized_frame_s": 25.0,
+        "best_visualized_num_corners": 102,
+        "rvec_world_to_cam": [
+          -0.6589801104772226,
+          -0.026390507532257353,
+          -0.10313952662170178
+        ],
+        "R_world_to_cam": [
+          [
+            0.9945402222741319,
+            0.10402602595588367,
+            0.00826632946029748
+          ],
+          [
+            -0.08727145399856331,
+            0.7856919802322134,
+            0.6124310618475844
+          ],
+          [
+            0.057213980773033205,
+            -0.6098087389687105,
+            0.7904807791980106
+          ]
+        ],
+        "t_world_to_cam_mm": [
+          -201.9612704471209,
+          344.47351384626825,
+          952.9187171107806
+        ],
+        "camera_center_world_mm": [
+          176.4010380595641,
+          331.4573123511986,
+          -962.5607314776009
+        ],
+        "camera_display_x_y_height_mm": [
+          176.4010380595641,
+          331.4573123511986,
+          962.5607314776009
+        ],
+        "reprojection_mean_px": 0.5937101532852788,
+        "reprojection_median_px": 0.43467608591794515,
+        "reprojection_p95_px": 2.14157472173494,
+        "reprojection_max_px": 4.756726629027097,
+        "imu_timestamps": {
+          "first_t_us": 7792106,
+          "last_t_us": 187740705,
+          "duration_s_from_imu": 179.948599
+        }
+      }
+    },
+    "generated_images": [
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/00_contact_sheet.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/cam1_01_charuco_detection.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/cam1_02_reprojection_overlay.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/cam2_01_charuco_detection.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/cam2_02_reprojection_overlay.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/cam3_01_charuco_detection.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/cam3_02_reprojection_overlay.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/cam4_01_charuco_detection.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/cam4_02_reprojection_overlay.jpg",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/03_world_scene_board_cameras.png",
+      "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/04_board_corner_multiview_triangulation.png"
+    ],
+    "world_scene": {
+      "note": "Display uses height=-world_Z so cameras appear above the board. Raw extrinsics are unchanged.",
+      "board_size_mm": [
+        560.0,
+        400.0
+      ],
+      "cameras": {
+        "cam1": {
+          "world_center_mm": [
+            594.6815385768647,
+            359.42263167653124,
+            -640.6271068194719
+          ],
+          "display_x_y_height_mm": [
+            594.6815385768647,
+            359.42263167653124,
+            640.6271068194719
+          ]
+        },
+        "cam2": {
+          "world_center_mm": [
+            78.56510813879055,
+            -16.88341873177016,
+            -637.8841115286904
+          ],
+          "display_x_y_height_mm": [
+            78.56510813879055,
+            -16.88341873177016,
+            637.8841115286904
+          ]
+        },
+        "cam3": {
+          "world_center_mm": [
+            279.37969094155477,
+            -407.11565390402234,
+            -640.2497883959675
+          ],
+          "display_x_y_height_mm": [
+            279.37969094155477,
+            -407.11565390402234,
+            640.2497883959675
+          ]
+        },
+        "cam4": {
+          "world_center_mm": [
+            176.4010380595641,
+            331.4573123511986,
+            -962.5607314776009
+          ],
+          "display_x_y_height_mm": [
+            176.4010380595641,
+            331.4573123511986,
+            962.5607314776009
+          ]
+        }
+      }
+    },
+    "board_corner_multiview_triangulation": {
+      "camera_names": [
+        "cam1",
+        "cam2",
+        "cam3",
+        "cam4"
+      ],
+      "num_common_corners": 52,
+      "mean_error_mm": 1.7920545645613737,
+      "median_error_mm": 1.7002979304960881,
+      "p95_error_mm": 2.6947319486595243,
+      "max_error_mm": 3.0993605860158695,
+      "note": "This is a sanity check using known ChArUco board geometry, not an independent hand-pose accuracy estimate."
+    }
+  },
+  "audio_sync": {
+    "reference_camera": "cam1",
+    "offset_convention": "offset_s means target_camera_time = reference_camera_time + offset_s. To put a target camera event on the reference timeline, use target_time_s - offset_s.",
+    "sample_rate_hz": 16000,
+    "cameras": {
+      "cam1": {
+        "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-1/a77064-H-0001.mp4",
+        "wav": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/audio/cam1.wav",
+        "duration_s": 179.968,
+        "top_onset_peaks": [
+          {
+            "time_s": 52.96,
+            "strength": 62.439048767089844
+          },
+          {
+            "time_s": 56.185,
+            "strength": 61.231319427490234
+          },
+          {
+            "time_s": 24.575,
+            "strength": 44.433292388916016
+          },
+          {
+            "time_s": 160.61,
+            "strength": 40.615478515625
+          },
+          {
+            "time_s": 154.3,
+            "strength": 38.18267059326172
+          },
+          {
+            "time_s": 160.125,
+            "strength": 38.014984130859375
+          },
+          {
+            "time_s": 26.015,
+            "strength": 35.5967903137207
+          },
+          {
+            "time_s": 49.04,
+            "strength": 22.505512237548828
+          },
+          {
+            "time_s": 51.95,
+            "strength": 20.293973922729492
+          },
+          {
+            "time_s": 118.03,
+            "strength": 19.55303192138672
+          },
+          {
+            "time_s": 71.38,
+            "strength": 17.388290405273438
+          },
+          {
+            "time_s": 8.675,
+            "strength": 16.836835861206055
+          }
+        ],
+        "sync_to_reference": {
+          "offset_s": 0.0,
+          "lag_frames": 0,
+          "correlation_score": 1.0,
+          "second_best_score": null,
+          "confidence": "reference"
+        }
+      },
+      "cam2": {
+        "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-2/a77033-H-0003.mp4",
+        "wav": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/audio/cam2.wav",
+        "duration_s": 179.968,
+        "top_onset_peaks": [
+          {
+            "time_s": 147.995,
+            "strength": 98.34093475341797
+          },
+          {
+            "time_s": 46.65,
+            "strength": 68.70242309570312
+          },
+          {
+            "time_s": 50.22,
+            "strength": 62.976715087890625
+          },
+          {
+            "time_s": 18.27,
+            "strength": 32.16811752319336
+          },
+          {
+            "time_s": 65.075,
+            "strength": 18.713706970214844
+          },
+          {
+            "time_s": 154.3,
+            "strength": 14.39396858215332
+          },
+          {
+            "time_s": 12.085,
+            "strength": 14.378398895263672
+          },
+          {
+            "time_s": 19.705000000000002,
+            "strength": 13.585338592529297
+          },
+          {
+            "time_s": 105.455,
+            "strength": 11.756180763244629
+          },
+          {
+            "time_s": 42.735,
+            "strength": 11.386520385742188
+          },
+          {
+            "time_s": 153.815,
+            "strength": 10.56212043762207
+          },
+          {
+            "time_s": 45.645,
+            "strength": 10.1820650100708
+          }
+        ],
+        "sync_to_reference": {
+          "offset_s": -6.3100000000000005,
+          "lag_frames": -1262,
+          "correlation_score": 0.6640943209005007,
+          "second_best_score": 0.13574190025035857,
+          "peak_ratio": 4.8923311053968135,
+          "confidence": "high"
+        }
+      },
+      "cam3": {
+        "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-3/a72491-H-0003.mp4",
+        "wav": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/audio/cam3.wav",
+        "duration_s": 179.968,
+        "top_onset_peaks": [
+          {
+            "time_s": 44.25,
+            "strength": 64.37613677978516
+          },
+          {
+            "time_s": 40.68,
+            "strength": 63.40824508666992
+          },
+          {
+            "time_s": 142.02,
+            "strength": 58.29945373535156
+          },
+          {
+            "time_s": 148.33,
+            "strength": 30.149166107177734
+          },
+          {
+            "time_s": 12.295,
+            "strength": 28.851186752319336
+          },
+          {
+            "time_s": 147.845,
+            "strength": 28.742351531982422
+          },
+          {
+            "time_s": 36.76,
+            "strength": 20.236225128173828
+          },
+          {
+            "time_s": 59.1,
+            "strength": 17.656618118286133
+          },
+          {
+            "time_s": 99.48,
+            "strength": 17.640018463134766
+          },
+          {
+            "time_s": 6.11,
+            "strength": 17.120338439941406
+          },
+          {
+            "time_s": 13.735,
+            "strength": 14.411921501159668
+          },
+          {
+            "time_s": 101.11500000000001,
+            "strength": 13.484469413757324
+          }
+        ],
+        "sync_to_reference": {
+          "offset_s": -12.280000000000001,
+          "lag_frames": -2456,
+          "correlation_score": 0.8614199649741104,
+          "second_best_score": 0.12950985462682016,
+          "peak_ratio": 6.651385467586798,
+          "confidence": "high"
+        }
+      },
+      "cam4": {
+        "video": "/Users/zikangjiang/dev/ego-exo/v2/camera-4/a67244-H-0001.mp4",
+        "wav": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/audio/cam4.wav",
+        "duration_s": 179.968,
+        "top_onset_peaks": [
+          {
+            "time_s": 150.465,
+            "strength": 76.3137435913086
+          },
+          {
+            "time_s": 52.35,
+            "strength": 65.44517517089844
+          },
+          {
+            "time_s": 49.125,
+            "strength": 58.519649505615234
+          },
+          {
+            "time_s": 20.740000000000002,
+            "strength": 44.473724365234375
+          },
+          {
+            "time_s": 156.77,
+            "strength": 26.039487838745117
+          },
+          {
+            "time_s": 156.285,
+            "strength": 22.957014083862305
+          },
+          {
+            "time_s": 67.545,
+            "strength": 20.45884895324707
+          },
+          {
+            "time_s": 107.925,
+            "strength": 17.7371883392334
+          },
+          {
+            "time_s": 14.55,
+            "strength": 16.481712341308594
+          },
+          {
+            "time_s": 45.205,
+            "strength": 16.298446655273438
+          },
+          {
+            "time_s": 22.175,
+            "strength": 16.238178253173828
+          },
+          {
+            "time_s": 48.115,
+            "strength": 14.291614532470703
+          }
+        ],
+        "sync_to_reference": {
+          "offset_s": -3.835,
+          "lag_frames": -767,
+          "correlation_score": 0.7196629070185826,
+          "second_best_score": 0.12615228881217516,
+          "peak_ratio": 5.704715418125072,
+          "confidence": "high"
+        }
+      }
+    },
+    "envelope_hop_s": 0.005,
+    "audio_sync_plot": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/take1/audio_sync_onset_envelopes.png"
+  }
+}
