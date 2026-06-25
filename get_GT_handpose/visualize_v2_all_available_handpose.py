@@ -119,23 +119,6 @@ def load_calibration_report(labels: dict) -> dict:
     return json.loads(REPORT_BY_SEGMENT[next(iter(segment_ids))].read_text())
 
 
-def draw_label(
-    image: np.ndarray,
-    text: str,
-    xy: tuple[int, int],
-    color: tuple[int, int, int],
-) -> None:
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    scale = 0.48
-    thickness = 1
-    (w, h), baseline = cv2.getTextSize(text, font, scale, thickness)
-    x, y = xy
-    x0 = max(0, min(image.shape[1] - w - 8, x + 8))
-    y0 = max(h + 6, min(image.shape[0] - 4, y - 8))
-    cv2.rectangle(image, (x0 - 3, y0 - h - 4), (x0 + w + 3, y0 + baseline + 3), (17, 24, 39), -1)
-    cv2.putText(image, text, (x0, y0), font, scale, color, thickness, cv2.LINE_AA)
-
-
 def save_camera_keypoint_overlays(
     out_dir: Path,
     labels: dict,
@@ -182,18 +165,6 @@ def save_camera_keypoint_overlays(
         for idx, point in points.items():
             cv2.circle(frame, point, 7, (255, 255, 255), -1, cv2.LINE_AA)
             cv2.circle(frame, point, 4, line_color, -1, cv2.LINE_AA)
-            draw_label(frame, f"{idx} {keypoint_names[idx]}", point, (255, 255, 255))
-
-        cv2.putText(
-            frame,
-            f"{cam} | local {float(info.get('local_time_s') or 0.0):.3f}s | frame {frame_index}",
-            (24, 42),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.9,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
         filename = f"{stem}_{cam}_raw_frame_keypoints.jpg"
         out_path = out_dir / filename
         cv2.imwrite(str(out_path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), CAMERA_FRAME_JPEG_QUALITY])
@@ -293,7 +264,7 @@ def add_keypoint_rays(
                 hoverinfo="text",
                 legendgroup=f"{cam}-rays",
                 name=f"{cam} keypoint rays",
-                showlegend=first_ray_for_camera,
+                showlegend=False,
             )
         )
         first_ray_for_camera = False
@@ -395,11 +366,8 @@ def add_camera_image_plane(
             x=kp_pts[:, 0],
             y=kp_pts[:, 1],
             z=kp_pts[:, 2],
-            mode="markers+text",
+            mode="markers",
             marker={"size": 4, "color": "#ffffff", "line": {"color": "#111827", "width": 1}},
-            text=[f"{idx} {name}" for idx, name in zip(kp_indices, kp_names)],
-            textfont={"size": 10, "color": "#ffffff"},
-            textposition="top center",
             hovertext=[f"{cam} {idx} {name}" for idx, name in zip(kp_indices, kp_names)],
             hoverinfo="text",
             name=f"{cam} 2D labels",
@@ -594,13 +562,12 @@ def save_interactive_scene(
             x=point_arr[:, 0],
             y=point_arr[:, 1],
             z=point_arr[:, 2],
-            mode="markers+text",
+            mode="markers",
             marker={"size": [9 if name == "wrist" else 6 for name in point_names], "color": "#111827"},
-            text=[str(keypoint_names.index(name)) for name in point_names],
-            textposition="top center",
             hovertext=point_names,
             hoverinfo="text",
             name=f"{hand} hand joints",
+            showlegend=False,
         )
     )
 
@@ -619,12 +586,12 @@ def save_interactive_scene(
                 x=[center[0]],
                 y=[center[1]],
                 z=[center[2]],
-                mode="markers+text",
+                mode="markers",
                 marker={"size": 8, "symbol": "diamond", "color": color},
-                text=[cam],
-                textposition="top center",
+                hovertext=[cam],
                 hoverinfo="text",
                 name=cam,
+                showlegend=False,
             )
         )
         fig.add_trace(
@@ -675,16 +642,13 @@ def save_interactive_scene(
                 x=[axis_origin[0], end[0]],
                 y=[axis_origin[1], end[1]],
                 z=[axis_origin[2], end[2]],
-                mode="lines+text",
+                mode="lines",
                 line={"color": color, "width": 7},
-                text=["", label],
-                textposition="top center",
                 hoverinfo="skip",
                 showlegend=False,
             )
         )
 
-    missing = ", ".join(f"{item['index']} {item['name']}" for item in all_available["missing_keypoints"]) or "none"
     cameras = {
         "Iso": {"eye": {"x": 1.35, "y": -1.6, "z": 1.0}, "up": {"x": 0, "y": 0, "z": 1}},
         "Top": {"eye": {"x": 0.0, "y": 0.0, "z": 2.35}, "up": {"x": 0, "y": 1, "z": 0}},
@@ -692,41 +656,17 @@ def save_interactive_scene(
         "Camera row": {"eye": {"x": 0.1, "y": -2.2, "z": 0.65}, "up": {"x": 0, "y": 0, "z": 1}},
     }
     fig.update_layout(
-        title=f"{hand.title()} hand session {all_available['session_time_s']:.3f}s: interactive 3D scene",
         autosize=True,
-        margin={"l": 0, "r": 0, "b": 0, "t": 70},
+        showlegend=False,
+        margin={"l": 0, "r": 0, "b": 0, "t": 0},
         paper_bgcolor="#f8fafc",
         scene={
-            "xaxis": {"title": "X = raw world X (mm)", "backgroundcolor": "#f8fafc"},
-            "yaxis": {"title": "Y = -raw world Y (mm)", "backgroundcolor": "#f8fafc"},
-            "zaxis": {"title": "Z up = -raw world Z (mm)", "backgroundcolor": "#f8fafc"},
+            "xaxis": {"title": "", "showticklabels": False, "backgroundcolor": "#f8fafc"},
+            "yaxis": {"title": "", "showticklabels": False, "backgroundcolor": "#f8fafc"},
+            "zaxis": {"title": "", "showticklabels": False, "backgroundcolor": "#f8fafc"},
             "aspectmode": "data",
             "camera": cameras["Iso"],
         },
-        updatemenus=[
-            {
-                "type": "buttons",
-                "direction": "right",
-                "x": 0.02,
-                "y": 1.04,
-                "buttons": [
-                    {"label": name, "method": "relayout", "args": [{"scene.camera": camera}]}
-                    for name, camera in cameras.items()
-                ],
-            }
-        ],
-        annotations=[
-            {
-                "text": f"Partial all-available triangulation: {len(display_points)}/21 joints. Missing: {missing}. Drag to rotate.",
-                "xref": "paper",
-                "yref": "paper",
-                "x": 0.01,
-                "y": 0.01,
-                "showarrow": False,
-                "align": "left",
-                "font": {"size": 12, "color": "#475569"},
-            }
-        ],
     )
     plot_html = fig.to_html(
         include_plotlyjs="cdn",
