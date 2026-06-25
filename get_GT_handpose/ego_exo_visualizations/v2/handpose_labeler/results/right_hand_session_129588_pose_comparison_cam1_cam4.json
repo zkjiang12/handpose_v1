@@ -112,6 +112,7 @@
   },
   "generated_files": {
     "handpose_3d": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_3d_handpose_cam1_cam4.png",
+    "clean_handpose_3d_render": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_clean_3d_handpose_render_cam1_cam4.png",
     "full_scene_3d_z_up": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_full_3d_scene_z_up_cam1_cam4.png",
     "pose_2d_comparison": "/Users/zikangjiang/dev/ego-exo/visualizations/v2/handpose_labeler/results/right_hand_session_129588_2d_pose_comparison_cam1_cam4.png"
   }

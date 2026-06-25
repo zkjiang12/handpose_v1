@@ -10,6 +10,7 @@ from pathlib import Path
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+from PIL import Image
 
 
 K_DEFAULT = np.array(
@@ -234,6 +235,142 @@ def save_3d_handpose(
     plt.close(fig)
 
 
+def mesh_sphere(center: np.ndarray, radius: float, segments: int = 28) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    u = np.linspace(0, 2 * np.pi, segments)
+    v = np.linspace(0, np.pi, segments // 2)
+    x = center[0] + radius * np.outer(np.cos(u), np.sin(v))
+    y = center[1] + radius * np.outer(np.sin(u), np.sin(v))
+    z = center[2] + radius * np.outer(np.ones_like(u), np.cos(v))
+    return x, y, z
+
+
+def mesh_cylinder(
+    start: np.ndarray,
+    end: np.ndarray,
+    radius: float,
+    radial_segments: int = 24,
+    length_segments: int = 3,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    axis = end - start
+    length = float(np.linalg.norm(axis))
+    if length == 0.0:
+        raise ValueError("Cannot render a zero-length cylinder")
+    w = axis / length
+    helper = np.array([0.0, 0.0, 1.0])
+    if abs(float(np.dot(w, helper))) > 0.92:
+        helper = np.array([0.0, 1.0, 0.0])
+    u = np.cross(w, helper)
+    u /= np.linalg.norm(u)
+    v = np.cross(w, u)
+
+    theta = np.linspace(0, 2 * np.pi, radial_segments)
+    t = np.linspace(0, 1, length_segments)
+    theta_grid, t_grid = np.meshgrid(theta, t)
+    circle = np.cos(theta_grid)[..., None] * u + np.sin(theta_grid)[..., None] * v
+    pts = start + t_grid[..., None] * axis + radius * circle
+    return pts[..., 0], pts[..., 1], pts[..., 2]
+
+
+def crop_render_to_content(path: Path, pad_px: int = 90) -> None:
+    image = Image.open(path).convert("RGB")
+    arr = np.array(image)
+    bg = np.array([248, 250, 252], dtype=np.int16)
+    diff = np.abs(arr.astype(np.int16) - bg).sum(axis=2)
+    ys, xs = np.where(diff > 10)
+    if len(xs) == 0 or len(ys) == 0:
+        return
+
+    x0 = max(0, int(xs.min()) - pad_px)
+    x1 = min(arr.shape[1], int(xs.max()) + pad_px)
+    y0 = max(0, int(ys.min()) - pad_px)
+    y1 = min(arr.shape[0], int(ys.max()) + pad_px)
+
+    width = x1 - x0
+    height = y1 - y0
+    side = max(width, height)
+    cx = (x0 + x1) // 2
+    cy = (y0 + y1) // 2
+    x0 = max(0, cx - side // 2)
+    y0 = max(0, cy - side // 2)
+    x1 = min(arr.shape[1], x0 + side)
+    y1 = min(arr.shape[0], y0 + side)
+    if x1 - x0 < side:
+        x0 = max(0, x1 - side)
+    if y1 - y0 < side:
+        y0 = max(0, y1 - side)
+
+    image.crop((x0, y0, x1, y1)).save(path)
+
+
+def save_clean_handpose_render(
+    path: Path,
+    tri_points: dict[str, np.ndarray],
+    keypoint_names: list[str],
+    edges: list[list[int]],
+    combo: str,
+) -> None:
+    display = world_to_display(tri_points)
+    pts = np.stack([display[name] for name in keypoint_names])
+    min_xy = pts[:, :2].min(axis=0) - 34
+    max_xy = pts[:, :2].max(axis=0) + 34
+
+    fig = plt.figure(figsize=(8.4, 8.4))
+    fig.patch.set_facecolor("#f8fafc")
+    ax = fig.add_subplot(111, projection="3d")
+    ax.set_facecolor("#f8fafc")
+    ax.set_position([0.0, 0.0, 1.0, 1.0])
+    ax.set_proj_type("ortho")
+
+    xx, yy = np.meshgrid([min_xy[0], max_xy[0]], [min_xy[1], max_xy[1]])
+    zz = np.zeros_like(xx)
+    ax.plot_surface(xx, yy, zz, color="#e2e8f0", alpha=0.42, linewidth=0, shade=False)
+
+    for a, b in edges:
+        pa = display[keypoint_names[a]]
+        pb = display[keypoint_names[b]]
+        ax.plot(
+            [pa[0], pb[0]],
+            [pa[1], pb[1]],
+            [0.8, 0.8],
+            color="#0f172a",
+            linewidth=6.0,
+            alpha=0.07,
+        )
+
+    for a, b in edges:
+        start = display[keypoint_names[a]]
+        end = display[keypoint_names[b]]
+        color = edge_color(a, b, keypoint_names)
+        radius = 4.9 if a == 0 else 4.15
+        x, y, z = mesh_cylinder(start, end, radius)
+        ax.plot_surface(x, y, z, color=color, alpha=0.96, linewidth=0, antialiased=True, shade=True)
+
+    for i, name in enumerate(keypoint_names):
+        center = display[name]
+        if i == 0:
+            radius = 7.8
+            color = "#f97316"
+        elif i in (4, 8, 12, 16, 20):
+            radius = 6.2
+            color = "#111827"
+        else:
+            radius = 5.4
+            color = "#1f2937"
+        x, y, z = mesh_sphere(center, radius)
+        ax.plot_surface(x, y, z, color=color, linewidth=0, antialiased=True, shade=True)
+
+    set_equal_3d_axes(
+        ax,
+        np.vstack([pts, [[min_xy[0], min_xy[1], 0], [max_xy[0], max_xy[1], 0]]]),
+        pad_mm=10.0,
+    )
+    ax.view_init(elev=27, azim=-58)
+    ax.set_axis_off()
+    fig.savefig(path, dpi=260, facecolor=fig.get_facecolor(), bbox_inches="tight", pad_inches=0.03)
+    plt.close(fig)
+    crop_render_to_content(path)
+
+
 def save_full_3d_scene(
     path: Path,
     tri_points: dict[str, np.ndarray],
@@ -440,11 +577,13 @@ def main() -> None:
     suffix = args.combo.replace("+", "_")
     args.out_dir.mkdir(parents=True, exist_ok=True)
     hand_3d_path = args.out_dir / f"{stem}_3d_handpose_{suffix}.png"
+    clean_hand_render_path = args.out_dir / f"{stem}_clean_3d_handpose_render_{suffix}.png"
     full_scene_3d_path = args.out_dir / f"{stem}_full_3d_scene_z_up_{suffix}.png"
     comparison_2d_path = args.out_dir / f"{stem}_2d_pose_comparison_{suffix}.png"
     comparison_json_path = args.out_dir / f"{stem}_pose_comparison_{suffix}.json"
 
     save_3d_handpose(hand_3d_path, tri_points, keypoint_names, edges, args.combo)
+    save_clean_handpose_render(clean_hand_render_path, tri_points, keypoint_names, edges, args.combo)
     full_scene = save_full_3d_scene(
         full_scene_3d_path,
         tri_points,
@@ -472,6 +611,7 @@ def main() -> None:
         },
         "generated_files": {
             "handpose_3d": str(hand_3d_path),
+            "clean_handpose_3d_render": str(clean_hand_render_path),
             "full_scene_3d_z_up": str(full_scene_3d_path),
             "pose_2d_comparison": str(comparison_2d_path),
         },
