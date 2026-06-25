@@ -12,12 +12,11 @@ from pathlib import Path
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
-import plotly.graph_objects as go
 
 
 EGO_EXO_ROOT = Path("/Users/zikangjiang/dev/ego-exo")
-CAMERA_IMAGE_TEXTURE_COLS = 512
-CAMERA_FRAME_JPEG_QUALITY = 97
+CAMERA_IMAGE_WARP_GRID_COLS = 256
+CAMERA_FRAME_JPEG_QUALITY = 100
 K_DEFAULT = np.array(
     [
         [699.19397931, 0.0, 976.75087121],
@@ -178,11 +177,6 @@ def save_camera_keypoint_overlays(
     return out
 
 
-def bgr_to_hex(rgb: np.ndarray) -> str:
-    r, g, b = [int(v) for v in rgb]
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
 def camera_plane_points(
     rvec: np.ndarray,
     tvec: np.ndarray,
@@ -216,164 +210,6 @@ def camera_ray_display(
     direction_display = world_to_z_up(direction_world)
     direction_display /= np.linalg.norm(direction_display)
     return world_to_z_up(camera_center_world(rvec, tvec)), direction_display
-
-
-def add_keypoint_rays(
-    fig: go.Figure,
-    labels: dict,
-    all_available: dict,
-    hand: str,
-    cam: str,
-    rvec: np.ndarray,
-    tvec: np.ndarray,
-    keypoint_names: list[str],
-    color: str,
-) -> None:
-    tri_points = {
-        name: world_to_z_up(np.array(xyz, dtype=float))
-        for name, xyz in all_available["points_mm"].items()
-    }
-    first_ray_for_camera = True
-    for kp_s, cams in sorted(labels["hands"].get(hand, {}).items(), key=lambda item: int(item[0])):
-        if cam not in cams:
-            continue
-        kp_index = int(kp_s)
-        kp_name = keypoint_names[kp_index]
-        origin, direction = camera_ray_display(rvec, tvec, cams[cam])
-        target = tri_points.get(kp_name)
-        if target is not None:
-            depth = float(np.dot(target - origin, direction))
-            if depth <= 0:
-                depth = 900.0
-            end = origin + direction * max(240.0, depth * 1.08)
-            closest = origin + direction * depth
-            miss_mm = float(np.linalg.norm(closest - target))
-            hover = f"{cam} ray for {kp_index} {kp_name}<br>ray-to-3D residual: {miss_mm:.1f} mm"
-        else:
-            end = origin + direction * 900.0
-            hover = f"{cam} ray for {kp_index} {kp_name}<br>no triangulated 3D joint"
-        fig.add_trace(
-            go.Scatter3d(
-                x=[origin[0], end[0]],
-                y=[origin[1], end[1]],
-                z=[origin[2], end[2]],
-                mode="lines",
-                line={"color": color, "width": 2},
-                opacity=0.34,
-                hovertext=[hover, hover],
-                hoverinfo="text",
-                legendgroup=f"{cam}-rays",
-                name=f"{cam} keypoint rays",
-                showlegend=False,
-            )
-        )
-        first_ray_for_camera = False
-
-
-def add_camera_image_plane(
-    fig: go.Figure,
-    image_path: Path,
-    labels: dict,
-    hand: str,
-    cam: str,
-    rvec: np.ndarray,
-    tvec: np.ndarray,
-    keypoint_names: list[str],
-    edges: list[list[int]],
-    plane_distance_mm: float = 180.0,
-    texture_cols: int = CAMERA_IMAGE_TEXTURE_COLS,
-) -> None:
-    image_bgr = cv2.imread(str(image_path))
-    if image_bgr is None:
-        return
-    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    height, width = image_rgb.shape[:2]
-    texture_rows = max(2, int(round(texture_cols * height / width)))
-    texture = cv2.resize(image_rgb, (texture_cols, texture_rows), interpolation=cv2.INTER_AREA)
-
-    xs = np.linspace(0, width - 1, texture_cols)
-    ys = np.linspace(0, height - 1, texture_rows)
-    grid_x, grid_y = np.meshgrid(xs, ys)
-    uv_grid = np.column_stack([grid_x.ravel(), grid_y.ravel()])
-    pts = camera_plane_points(rvec, tvec, uv_grid, plane_distance_mm)
-
-    i_idx: list[int] = []
-    j_idx: list[int] = []
-    k_idx: list[int] = []
-    face_colors: list[str] = []
-    for row in range(texture_rows - 1):
-        for col in range(texture_cols - 1):
-            v00 = row * texture_cols + col
-            v01 = v00 + 1
-            v10 = (row + 1) * texture_cols + col
-            v11 = v10 + 1
-            color = bgr_to_hex(texture[row, col])
-            i_idx.extend([v00, v00])
-            j_idx.extend([v10, v11])
-            k_idx.extend([v11, v01])
-            face_colors.extend([color, color])
-
-    fig.add_trace(
-        go.Mesh3d(
-            x=pts[:, 0],
-            y=pts[:, 1],
-            z=pts[:, 2],
-            i=i_idx,
-            j=j_idx,
-            k=k_idx,
-            facecolor=face_colors,
-            flatshading=True,
-            lighting={"ambient": 1.0, "diffuse": 0.0, "specular": 0.0, "roughness": 1.0},
-            hoverinfo="skip",
-            opacity=0.92,
-            name=f"{cam} raw frame",
-            showlegend=False,
-        )
-    )
-
-    kp_uv = []
-    kp_names = []
-    kp_indices = []
-    for kp_s, cams in labels["hands"].get(hand, {}).items():
-        if cam not in cams:
-            continue
-        kp_indices.append(int(kp_s))
-        kp_names.append(keypoint_names[int(kp_s)])
-        kp_uv.append(cams[cam])
-    if not kp_uv:
-        return
-
-    kp_pts = camera_plane_points(rvec, tvec, np.array(kp_uv, dtype=np.float64), plane_distance_mm * 0.992)
-    by_index = {idx: kp_pts[pos] for pos, idx in enumerate(kp_indices)}
-    for a, b in edges:
-        if a not in by_index or b not in by_index:
-            continue
-        pa = by_index[a]
-        pb = by_index[b]
-        fig.add_trace(
-            go.Scatter3d(
-                x=[pa[0], pb[0]],
-                y=[pa[1], pb[1]],
-                z=[pa[2], pb[2]],
-                mode="lines",
-                line={"color": "#facc15", "width": 6},
-                hoverinfo="skip",
-                showlegend=False,
-            )
-        )
-    fig.add_trace(
-        go.Scatter3d(
-            x=kp_pts[:, 0],
-            y=kp_pts[:, 1],
-            z=kp_pts[:, 2],
-            mode="markers",
-            marker={"size": 4, "color": "#ffffff", "line": {"color": "#111827", "width": 1}},
-            hovertext=[f"{cam} {idx} {name}" for idx, name in zip(kp_indices, kp_names)],
-            hoverinfo="text",
-            name=f"{cam} 2D labels",
-            showlegend=False,
-        )
-    )
 
 
 def reconstruct_gt_partial(
@@ -502,6 +338,47 @@ def save_2d_comparison(
     plt.close(fig)
 
 
+def camera_image_grid_geometry(
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    width: int,
+    height: int,
+    plane_distance_mm: float = 220.0,
+    grid_cols: int = CAMERA_IMAGE_WARP_GRID_COLS,
+) -> dict[str, list]:
+    grid_rows = max(2, int(round(grid_cols * height / width)))
+    xs = np.linspace(0, width - 1, grid_cols)
+    ys = np.linspace(0, height - 1, grid_rows)
+    grid_x, grid_y = np.meshgrid(xs, ys)
+    uv_grid = np.column_stack([grid_x.ravel(), grid_y.ravel()])
+    pts = camera_plane_points(rvec, tvec, uv_grid, plane_distance_mm)
+    uv = np.column_stack([uv_grid[:, 0] / (width - 1), 1.0 - uv_grid[:, 1] / (height - 1)])
+
+    indices = []
+    for row in range(grid_rows - 1):
+        for col in range(grid_cols - 1):
+            v00 = row * grid_cols + col
+            v01 = v00 + 1
+            v10 = (row + 1) * grid_cols + col
+            v11 = v10 + 1
+            indices.extend([v00, v10, v11, v00, v11, v01])
+    return {
+        "vertices": np.round(pts, 4).tolist(),
+        "uvs": np.round(uv, 6).tolist(),
+        "indices": indices,
+        "gridCols": grid_cols,
+        "gridRows": grid_rows,
+    }
+
+
+def make_three_line(points: list[np.ndarray], color: str, opacity: float = 1.0) -> dict:
+    return {
+        "points": [np.round(point, 4).tolist() for point in points],
+        "color": color,
+        "opacity": opacity,
+    }
+
+
 def save_interactive_scene(
     path: Path,
     all_available: dict,
@@ -514,8 +391,6 @@ def save_interactive_scene(
     hand = all_available["hand"]
     tri_points = {name: np.array(xyz, dtype=float) for name, xyz in all_available["points_mm"].items()}
     display_points = {name: world_to_z_up(xyz) for name, xyz in tri_points.items()}
-    pts = np.stack(list(display_points.values()))
-    fig = go.Figure()
 
     extrinsics = calibration_report["extrinsics"]
     board = extrinsics["board"]
@@ -523,55 +398,43 @@ def save_interactive_scene(
     board_h = board["rows"] * board["square_mm"]
     board_raw = np.array([[0, 0, 0], [board_w, 0, 0], [board_w, board_h, 0], [0, board_h, 0]], dtype=float)
     board_display = np.stack([world_to_z_up(p) for p in board_raw])
-    fig.add_trace(
-        go.Surface(
-            x=[[board_display[0, 0], board_display[1, 0]], [board_display[3, 0], board_display[2, 0]]],
-            y=[[board_display[0, 1], board_display[1, 1]], [board_display[3, 1], board_display[2, 1]]],
-            z=[[0, 0], [0, 0]],
-            opacity=0.18,
-            colorscale=[[0, "#e2e8f0"], [1, "#e2e8f0"]],
-            showscale=False,
-            hoverinfo="skip",
-            name="ChArUco board plane",
-        )
-    )
+    board_lines = [
+        make_three_line([board_display[i], board_display[(i + 1) % 4]], "#94a3b8", 0.75)
+        for i in range(4)
+    ]
+    board_surface = np.round(board_display, 4).tolist()
 
+    hand_edges = []
     for a, b in edges:
         start = keypoint_names[a]
         end = keypoint_names[b]
         if start not in display_points or end not in display_points:
             continue
-        pa = display_points[start]
-        pb = display_points[end]
-        fig.add_trace(
-            go.Scatter3d(
-                x=[pa[0], pb[0]],
-                y=[pa[1], pb[1]],
-                z=[pa[2], pb[2]],
-                mode="lines",
-                line={"color": edge_color(a, b, keypoint_names), "width": 10 if a == 0 else 7},
-                hoverinfo="skip",
-                showlegend=False,
-            )
+        hand_edges.append(
+            {
+                **make_three_line(
+                    [display_points[start], display_points[end]],
+                    edge_color(a, b, keypoint_names),
+                    1.0,
+                ),
+                "width": 1.0 if a != 0 else 1.4,
+            }
         )
 
-    point_names = [name for name in keypoint_names if name in display_points]
-    point_arr = np.stack([display_points[name] for name in point_names])
-    fig.add_trace(
-        go.Scatter3d(
-            x=point_arr[:, 0],
-            y=point_arr[:, 1],
-            z=point_arr[:, 2],
-            mode="markers",
-            marker={"size": [9 if name == "wrist" else 6 for name in point_names], "color": "#111827"},
-            hovertext=point_names,
-            hoverinfo="text",
-            name=f"{hand} hand joints",
-            showlegend=False,
-        )
-    )
+    hand_points = [
+        {
+            "index": keypoint_names.index(name),
+            "name": name,
+            "position": np.round(display_points[name], 4).tolist(),
+            "radius": 6.0 if name == "wrist" else 4.2,
+        }
+        for name in keypoint_names
+        if name in display_points
+    ]
 
     camera_colors = {"cam1": "#dc2626", "cam2": "#2563eb", "cam3": "#16a34a", "cam4": "#9333ea"}
+    cameras = {}
+    bounds_points = [*display_points.values(), *board_display]
     for cam, info in sorted(extrinsics["cameras"].items()):
         rvec = np.array(info["rvec_world_to_cam"], dtype=float).reshape(3, 1)
         tvec = np.array(info["t_world_to_cam_mm"], dtype=float).reshape(3, 1)
@@ -579,129 +442,402 @@ def save_interactive_scene(
         center = world_to_z_up(center_raw)
         dirs = np.array([world_to_z_up(d) for d in dirs_raw])
         color = camera_colors.get(cam, "#64748b")
-        scale = 180.0
-        optical_end = center + scale * 1.25 * dirs[4]
-        fig.add_trace(
-            go.Scatter3d(
-                x=[center[0]],
-                y=[center[1]],
-                z=[center[2]],
-                mode="markers",
-                marker={"size": 8, "symbol": "diamond", "color": color},
-                hovertext=[cam],
-                hoverinfo="text",
-                name=cam,
-                showlegend=False,
-            )
-        )
-        fig.add_trace(
-            go.Scatter3d(
-                x=[center[0], optical_end[0]],
-                y=[center[1], optical_end[1]],
-                z=[center[2], optical_end[2]],
-                mode="lines",
-                line={"color": color, "width": 5},
-                hoverinfo="skip",
-                showlegend=False,
-            )
-        )
+        optical_end = center + 240.0 * dirs[4]
+        bounds_points.extend([center, optical_end])
+
         overlay = camera_overlays.get(cam)
+        image = None
+        projected_points = []
+        projected_edges = []
         if overlay:
-            add_camera_image_plane(
-                fig,
-                Path(str(overlay["path"])),
-                labels,
-                hand,
-                cam,
-                rvec,
-                tvec,
-                keypoint_names,
-                edges,
-            )
-        add_keypoint_rays(
-            fig,
-            labels,
-            all_available,
-            hand,
-            cam,
-            rvec,
-            tvec,
-            keypoint_names,
-            color,
-        )
+            overlay_path = Path(str(overlay["path"]))
+            image_bgr = cv2.imread(str(overlay_path))
+            if image_bgr is not None:
+                height, width = image_bgr.shape[:2]
+            else:
+                width, height = labels.get("image_size", [1920, 1080])
+            image = {
+                "filename": overlay["filename"],
+                "width": int(width),
+                "height": int(height),
+                "geometry": camera_image_grid_geometry(rvec, tvec, int(width), int(height)),
+            }
+            bounds_points.extend(np.array(image["geometry"]["vertices"], dtype=float))
 
-    axis_origin = np.array([0.0, 0.0, 0.0])
-    for label, vec, color in (
-        ("+X", np.array([180.0, 0.0, 0.0]), "#ef4444"),
-        ("+Y display", np.array([0.0, 180.0, 0.0]), "#22c55e"),
-        ("+Z up", np.array([0.0, 0.0, 180.0]), "#2563eb"),
-    ):
-        end = axis_origin + vec
-        fig.add_trace(
-            go.Scatter3d(
-                x=[axis_origin[0], end[0]],
-                y=[axis_origin[1], end[1]],
-                z=[axis_origin[2], end[2]],
-                mode="lines",
-                line={"color": color, "width": 7},
-                hoverinfo="skip",
-                showlegend=False,
-            )
-        )
+            kp_uv = []
+            kp_indices = []
+            for kp_s, cams in labels["hands"].get(hand, {}).items():
+                if cam not in cams:
+                    continue
+                kp_indices.append(int(kp_s))
+                kp_uv.append(cams[cam])
+            if kp_uv:
+                kp_pts = camera_plane_points(rvec, tvec, np.array(kp_uv, dtype=np.float64), 217.0)
+                by_index = {idx: kp_pts[pos] for pos, idx in enumerate(kp_indices)}
+                for idx, point in by_index.items():
+                    projected_points.append(
+                        {
+                            "index": idx,
+                            "name": keypoint_names[idx],
+                            "position": np.round(point, 4).tolist(),
+                        }
+                    )
+                    bounds_points.append(point)
+                for a, b in edges:
+                    if a not in by_index or b not in by_index:
+                        continue
+                    projected_edges.append(make_three_line([by_index[a], by_index[b]], "#facc15", 1.0))
 
-    cameras = {
-        "Iso": {"eye": {"x": 1.35, "y": -1.6, "z": 1.0}, "up": {"x": 0, "y": 0, "z": 1}},
-        "Top": {"eye": {"x": 0.0, "y": 0.0, "z": 2.35}, "up": {"x": 0, "y": 1, "z": 0}},
-        "Side": {"eye": {"x": 2.2, "y": -0.2, "z": 0.55}, "up": {"x": 0, "y": 0, "z": 1}},
-        "Camera row": {"eye": {"x": 0.1, "y": -2.2, "z": 0.65}, "up": {"x": 0, "y": 0, "z": 1}},
-    }
-    fig.update_layout(
-        autosize=True,
-        showlegend=False,
-        margin={"l": 0, "r": 0, "b": 0, "t": 0},
-        paper_bgcolor="#f8fafc",
-        scene={
-            "xaxis": {"title": "", "showticklabels": False, "backgroundcolor": "#f8fafc"},
-            "yaxis": {"title": "", "showticklabels": False, "backgroundcolor": "#f8fafc"},
-            "zaxis": {"title": "", "showticklabels": False, "backgroundcolor": "#f8fafc"},
-            "aspectmode": "data",
-            "camera": cameras["Iso"],
+        rays = []
+        tri_display = {
+            name: world_to_z_up(np.array(xyz, dtype=float))
+            for name, xyz in all_available["points_mm"].items()
+        }
+        for kp_s, cams in sorted(labels["hands"].get(hand, {}).items(), key=lambda item: int(item[0])):
+            if cam not in cams:
+                continue
+            kp_index = int(kp_s)
+            kp_name = keypoint_names[kp_index]
+            origin, direction = camera_ray_display(rvec, tvec, cams[cam])
+            target = tri_display.get(kp_name)
+            residual_mm = None
+            if target is not None:
+                depth = float(np.dot(target - origin, direction))
+                if depth <= 0:
+                    depth = 900.0
+                end = origin + direction * max(260.0, depth * 1.08)
+                residual_mm = float(np.linalg.norm(origin + direction * depth - target))
+            else:
+                end = origin + direction * 900.0
+            rays.append(
+                {
+                    "joint": kp_index,
+                    "name": kp_name,
+                    **make_three_line([origin, end], color, 0.38),
+                    "residualMm": None if residual_mm is None else round(residual_mm, 2),
+                }
+            )
+            bounds_points.extend([origin, end])
+
+        cameras[cam] = {
+            "color": color,
+            "center": np.round(center, 4).tolist(),
+            "opticalAxis": make_three_line([center, optical_end], color, 0.9),
+            "image": image,
+            "projectedPoints": projected_points,
+            "projectedEdges": projected_edges,
+            "rays": rays,
+        }
+
+    bounds_arr = np.stack(bounds_points)
+    bounds_min = bounds_arr.min(axis=0)
+    bounds_max = bounds_arr.max(axis=0)
+    scene_center = (bounds_min + bounds_max) / 2.0
+    scene_radius = float(np.linalg.norm(bounds_max - bounds_min) / 2.0)
+    hand_arr = np.stack(list(display_points.values()))
+    hand_center = hand_arr.mean(axis=0)
+
+    scene_data = {
+        "hand": hand,
+        "sessionTimeS": float(all_available["session_time_s"]),
+        "bounds": {
+            "center": np.round(scene_center, 4).tolist(),
+            "radius": round(scene_radius, 4),
+            "handCenter": np.round(hand_center, 4).tolist(),
         },
-    )
-    plot_html = fig.to_html(
-        include_plotlyjs="cdn",
-        full_html=False,
-        config={"responsive": True},
-        default_width="100%",
-        default_height="100%",
-    )
+        "board": {"surface": board_surface, "lines": board_lines},
+        "axes": [
+            make_three_line([np.array([0.0, 0.0, 0.0]), np.array([180.0, 0.0, 0.0])], "#ef4444", 0.85),
+            make_three_line([np.array([0.0, 0.0, 0.0]), np.array([0.0, 180.0, 0.0])], "#22c55e", 0.85),
+            make_three_line([np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, 180.0])], "#2563eb", 0.85),
+        ],
+        "handPoints": hand_points,
+        "handEdges": hand_edges,
+        "cameras": cameras,
+        "missingKeypoints": all_available["missing_keypoints"],
+        "textureSource": "native 1920x1080 JPEG camera-frame overlays",
+    }
+    scene_json = json.dumps(scene_data, separators=(",", ":"))
     html = f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{hand.title()} hand session {all_available['session_time_s']:.3f}s</title>
+  <script type="importmap">
+    {{"imports": {{"three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"}}}}
+  </script>
   <style>
     * {{ box-sizing: border-box; }}
+    html, body, #viewer {{ width: 100%; height: 100%; margin: 0; overflow: hidden; }}
     body {{
-      margin: 0;
-      background: #f8fafc;
-      color: #172033;
+      background: #0b1020;
+      color: #e5e7eb;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0;
     }}
-    .scene {{
-      min-height: 100vh;
-      overflow: hidden;
+    #viewer canvas {{ display: block; width: 100%; height: 100%; }}
+    .panel {{
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      width: min(420px, calc(100vw - 24px));
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.86);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      backdrop-filter: blur(10px);
+      border-radius: 8px;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
     }}
-    .scene .plotly-graph-div {{
-      width: 100vw !important;
-      height: 100vh !important;
+    .row {{ display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }}
+    select, button {{
+      height: 30px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      background: rgba(30, 41, 59, 0.95);
+      color: #f8fafc;
+      border-radius: 6px;
+      padding: 0 10px;
+      font: inherit;
     }}
+    button {{ cursor: pointer; }}
+    button:hover, select:hover {{ border-color: rgba(226, 232, 240, 0.8); }}
+    label {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      color: #cbd5e1;
+      font-size: 13px;
+      white-space: nowrap;
+    }}
+    input[type="range"] {{ width: 118px; accent-color: #38bdf8; }}
+    input[type="checkbox"] {{ accent-color: #38bdf8; }}
+    .spacer {{ flex: 1 1 auto; }}
+    .small {{ font-size: 12px; color: #94a3b8; }}
   </style>
 </head>
 <body>
-  <main class="scene">{plot_html}</main>
+  <div id="viewer"></div>
+  <section class="panel">
+    <div class="row">
+      <select id="cameraSelect" aria-label="Camera">
+        <option value="all">All cameras</option>
+        {''.join(f'<option value="{cam}">{cam}</option>' for cam in sorted(cameras))}
+      </select>
+      <button type="button" data-view="iso">Iso</button>
+      <button type="button" data-view="top">Top</button>
+      <button type="button" data-view="side">Side</button>
+      <button type="button" data-view="hand">Hand</button>
+    </div>
+    <div class="row">
+      <label><input id="showImages" type="checkbox" checked>Images</label>
+      <label><input id="showRays" type="checkbox" checked>Rays</label>
+      <label><input id="showProjected" type="checkbox" checked>2D points</label>
+      <label><input id="showHand" type="checkbox" checked>3D hand</label>
+      <label><input id="showScene" type="checkbox" checked>Scene</label>
+    </div>
+    <div class="row">
+      <label>Image <input id="imageOpacity" type="range" min="0" max="1" step="0.02" value="0.92"></label>
+      <label>Rays <input id="rayOpacity" type="range" min="0" max="1" step="0.02" value="0.38"></label>
+      <span class="spacer"></span>
+      <span class="small">native 1920x1080</span>
+    </div>
+  </section>
+  <script type="module">
+    import * as THREE from 'three';
+    import {{ OrbitControls }} from 'three/addons/controls/OrbitControls.js';
+
+    const data = {scene_json};
+    const root = document.getElementById('viewer');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1020);
+
+    const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: false }});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    root.appendChild(renderer.domElement);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 10000);
+    camera.up.set(0, 0, 1);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+
+    const boundsCenter = new THREE.Vector3(...data.bounds.center);
+    const handCenter = new THREE.Vector3(...data.bounds.handCenter);
+    const radius = Math.max(data.bounds.radius, 600);
+    controls.target.copy(boundsCenter);
+    camera.position.set(boundsCenter.x + radius * 0.9, boundsCenter.y - radius * 1.25, boundsCenter.z + radius * 0.7);
+    camera.lookAt(boundsCenter);
+
+    const handGroup = new THREE.Group();
+    const sceneGroup = new THREE.Group();
+    const cameraGroups = {{}};
+    scene.add(handGroup, sceneGroup);
+
+    const textureLoader = new THREE.TextureLoader();
+    const imageMaterials = [];
+    const rayMaterials = [];
+    const pointMaterials = [];
+
+    function vec3(point) {{ return new THREE.Vector3(point[0], point[1], point[2]); }}
+
+    function makeLine(points, color, opacity = 1) {{
+      const geometry = new THREE.BufferGeometry().setFromPoints(points.map(vec3));
+      const material = new THREE.LineBasicMaterial({{
+        color,
+        transparent: opacity < 1,
+        opacity,
+        depthWrite: opacity >= 1
+      }});
+      return new THREE.Line(geometry, material);
+    }}
+
+    function makeSphere(position, radiusValue, color, opacity = 1) {{
+      const geometry = new THREE.SphereGeometry(radiusValue, 18, 12);
+      const material = new THREE.MeshBasicMaterial({{
+        color,
+        transparent: opacity < 1,
+        opacity,
+        depthWrite: opacity >= 1
+      }});
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(vec3(position));
+      return mesh;
+    }}
+
+    function makeImagePlane(image) {{
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(image.geometry.vertices.flat(), 3));
+      geometry.setAttribute('uv', new THREE.Float32BufferAttribute(image.geometry.uvs.flat(), 2));
+      geometry.setIndex(image.geometry.indices);
+      geometry.computeVertexNormals();
+      const texture = textureLoader.load(image.filename);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.minFilter = THREE.LinearMipmapLinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      const material = new THREE.MeshBasicMaterial({{
+        map: texture,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: Number(document.getElementById('imageOpacity').value),
+        depthWrite: false
+      }});
+      imageMaterials.push(material);
+      return new THREE.Mesh(geometry, material);
+    }}
+
+    data.board.lines.forEach(line => sceneGroup.add(makeLine(line.points, line.color, line.opacity)));
+    const boardGeometry = new THREE.BufferGeometry();
+    boardGeometry.setAttribute('position', new THREE.Float32BufferAttribute(data.board.surface.flat(), 3));
+    boardGeometry.setIndex([0, 1, 2, 0, 2, 3]);
+    sceneGroup.add(new THREE.Mesh(boardGeometry, new THREE.MeshBasicMaterial({{
+      color: 0x94a3b8,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    }})));
+    data.axes.forEach(line => sceneGroup.add(makeLine(line.points, line.color, line.opacity)));
+
+    data.handEdges.forEach(line => handGroup.add(makeLine(line.points, line.color, line.opacity)));
+    data.handPoints.forEach(point => handGroup.add(makeSphere(point.position, point.radius, 0x111827, 1)));
+
+    for (const [cam, camData] of Object.entries(data.cameras)) {{
+      const rootGroup = new THREE.Group();
+      const imageGroup = new THREE.Group();
+      const projectedGroup = new THREE.Group();
+      const rayGroup = new THREE.Group();
+      const helperGroup = new THREE.Group();
+      cameraGroups[cam] = {{ rootGroup, imageGroup, projectedGroup, rayGroup, helperGroup }};
+      scene.add(rootGroup);
+      rootGroup.add(imageGroup, projectedGroup, rayGroup, helperGroup);
+
+      helperGroup.add(makeSphere(camData.center, 8, camData.color, 1));
+      helperGroup.add(makeLine(camData.opticalAxis.points, camData.opticalAxis.color, camData.opticalAxis.opacity));
+
+      if (camData.image) imageGroup.add(makeImagePlane(camData.image));
+      camData.projectedEdges.forEach(line => projectedGroup.add(makeLine(line.points, line.color, line.opacity)));
+      camData.projectedPoints.forEach(point => projectedGroup.add(makeSphere(point.position, 3.3, 0xffffff, 1)));
+      camData.rays.forEach(ray => {{
+        const line = makeLine(ray.points, ray.color, Number(document.getElementById('rayOpacity').value));
+        line.material.depthWrite = false;
+        rayMaterials.push(line.material);
+        rayGroup.add(line);
+      }});
+    }}
+
+    function setOpacity(materials, value) {{
+      materials.forEach(material => {{
+        material.opacity = value;
+        material.transparent = value < 1;
+        material.needsUpdate = true;
+      }});
+    }}
+
+    function updateVisibility() {{
+      const selected = document.getElementById('cameraSelect').value;
+      const showImages = document.getElementById('showImages').checked;
+      const showRays = document.getElementById('showRays').checked;
+      const showProjected = document.getElementById('showProjected').checked;
+      const showHand = document.getElementById('showHand').checked;
+      const showScene = document.getElementById('showScene').checked;
+      handGroup.visible = showHand;
+      sceneGroup.visible = showScene;
+      for (const [cam, groups] of Object.entries(cameraGroups)) {{
+        const active = selected === 'all' || selected === cam;
+        groups.imageGroup.visible = active && showImages;
+        groups.rayGroup.visible = active && showRays;
+        groups.projectedGroup.visible = active && showProjected;
+        groups.helperGroup.visible = active && showScene;
+      }}
+    }}
+
+    function setView(name) {{
+      camera.up.set(0, 0, 1);
+      let target = boundsCenter.clone();
+      let position;
+      if (name === 'top') {{
+        camera.up.set(0, 1, 0);
+        position = new THREE.Vector3(boundsCenter.x, boundsCenter.y, boundsCenter.z + radius * 2.0);
+      }} else if (name === 'side') {{
+        position = new THREE.Vector3(boundsCenter.x + radius * 1.8, boundsCenter.y, boundsCenter.z + radius * 0.25);
+      }} else if (name === 'hand') {{
+        target = handCenter.clone();
+        position = new THREE.Vector3(handCenter.x + 230, handCenter.y - 290, handCenter.z + 210);
+      }} else {{
+        position = new THREE.Vector3(boundsCenter.x + radius * 0.9, boundsCenter.y - radius * 1.25, boundsCenter.z + radius * 0.7);
+      }}
+      camera.position.copy(position);
+      controls.target.copy(target);
+      camera.lookAt(target);
+      controls.update();
+    }}
+
+    document.querySelectorAll('input, select').forEach(control => control.addEventListener('input', updateVisibility));
+    document.getElementById('imageOpacity').addEventListener('input', event => setOpacity(imageMaterials, Number(event.target.value)));
+    document.getElementById('rayOpacity').addEventListener('input', event => setOpacity(rayMaterials, Number(event.target.value)));
+    document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
+    updateVisibility();
+
+    window.addEventListener('resize', () => {{
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }});
+
+    function animate() {{
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }}
+    animate();
+  </script>
 </body>
 </html>
 """
@@ -939,7 +1075,8 @@ def save_outputs() -> None:
             "camera_combo_error_summary_plot": str(combo_png),
             "bone_error_heatmap_by_camera_combo": str(bone_combo_heatmap),
             "camera_frame_overlays": {cam: info["path"] for cam, info in camera_overlays.items()},
-            "camera_image_texture_cols": CAMERA_IMAGE_TEXTURE_COLS,
+            "camera_image_texture_source": "native external 1920x1080 JPEG textures",
+            "camera_image_warp_grid_cols": CAMERA_IMAGE_WARP_GRID_COLS,
             "camera_frame_jpeg_quality": CAMERA_FRAME_JPEG_QUALITY,
         },
     }
